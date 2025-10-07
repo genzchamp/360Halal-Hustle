@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>360Halal-me.com — 360 Halal_me</title>
+<meta name="description" content="360 Halal_me — Halal Forex hub: education, trade journal, risk calculator and tools. Faith-first trading resources."/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-1:#0b0620; --bg-2:#120428;
+    --neon-pink:#ff3ecf; --neon-blue:#00e5ff; --neon-cyan:#7afcff; --neon-yellow:#ffd23f;
+    --glass: rgba(255,255,255,0.03);
+    --muted: rgba(255,255,255,0.72);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background: radial-gradient(1200px 600px at 10% 10%, rgba(112,41,255,0.12), transparent),
+                radial-gradient(900px 400px at 90% 90%, rgba(0,229,255,0.06), transparent),
+                linear-gradient(180deg,var(--bg-1),var(--bg-2));
+    color: #fff;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    padding:24px;
+  }
+
+  .wrap{max-width:1100px;margin:0 auto}
+
+  /* header */
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .logo{
+    width:64px;height:64px;border-radius:16px;
+    background: linear-gradient(135deg,var(--neon-pink),var(--neon-blue));
+    display:flex;align-items:center;justify-content:center;font-weight:800;color:#021029;
+    box-shadow:0 10px 30px rgba(0,0,0,0.6), 0 0 30px rgba(255,62,207,0.12);
+    font-size:20px;
+  }
+  .brand h1{margin:0;font-size:20px;letter-spacing:0.2px}
+  .brand p{margin:0;font-size:12px;color:var(--muted)}
+
+  .cta{
+    display:flex;gap:10px;align-items:center;
+  }
+  .btn{
+    padding:10px 16px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);
+    text-decoration:none;color:inherit;font-weight:700;font-size:14px;
+    backdrop-filter: blur(4px);
+  }
+  .btn-neon{
+    background:linear-gradient(90deg,var(--neon-pink),var(--neon-blue));
+    color:#06122a; box-shadow: 0 6px 30px rgba(124,77,255,0.12), 0 0 12px rgba(255,62,207,0.14);
+  }
+  .btn-outline{
+    border:1px solid rgba(0,229,255,0.9);
+    color:var(--neon-cyan); background:transparent;
+    box-shadow: 0 0 18px rgba(0,229,255,0.06) inset;
+  }
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:1fr 420px;gap:22px;align-items:start;margin-top:22px}
+  .hero h2{font-size:40px;margin:0;line-height:1.02}
+  .hero p{color:var(--muted);margin-top:12px;font-size:15px;max-width:720px}
+
+  /* card */
+  .card{
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.04);
+    padding:16px;border-radius:14px;box-shadow: 0 10px 30px rgba(2,8,23,0.6);
+  }
+
+  /* mini UI */
+  .stats{display:flex;gap:8px;margin-top:14px}
+  .stat{flex:1;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);text-align:center}
+  .stat small{display:block;color:var(--muted);font-size:12px}
+  .stat b{display:block;font-size:18px;margin-top:6px}
+
+  /* tools grid */
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  .tool{padding:12px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03)}
+
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+  input, select, textarea{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff;font-size:14px}
+  .small{font-size:13px;color:var(--muted)}
+
+  /* footer */
+  footer{margin-top:30px;text-align:center;color:var(--muted);font-size:13px}
+
+  /* neon icon accents */
+  .icon{
+    width:48px;height:48px;border-radius:10px;background:linear-gradient(90deg,var(--neon-blue),var(--neon-cyan));
+    display:flex;align-items:center;justify-content:center;color:#021029;font-weight:800;box-shadow:0 6px 30px rgba(0,229,255,0.06);
+  }
+
+  /* responsive */
+  @media(max-width:980px){
+    .hero{grid-template-columns:1fr}
+    .grid-3{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:540px){
+    .grid-3{grid-template-columns:1fr}
+    .brand h1{font-size:16px}
+    .hero h2{font-size:24px}
+    .logo{width:52px;height:52px;font-size:18px}
+    .cta{flex-direction:column;align-items:flex-end}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="header">
+    <div class="brand">
+      <div class="logo">360</div>
+      <div>
+        <h1>360 Halal_me</h1>
+        <p>360Halal-me.com — Halal Forex Hub</p>
+      </div>
+    </div>
+
+    <div class="cta">
+      <a class="btn btn-outline" href="YOUR_TELEGRAM_LINK" target="_blank">Join Telegram</a>
+      <a class="btn btn-neon" href="#journal">Open Journal</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div>
+        <h2 id="hero-title">Trade with knowledge, discipline, and faith.</h2>
+        <p>360 Halal_me is a global hub for halal FX: short actionable lessons, a trade journal to level up, and tools like a risk calculator and live resources — built to help you trade ethically and grow sustainably.</p>
+
+        <div class="stats">
+          <div class="stat">
+            <small>Focus</small>
+            <b>Halal Education</b>
+          </div>
+          <div class="stat">
+            <small>Tool</small>
+            <b>Risk Calc</b>
+          </div>
+          <div class="stat">
+            <small>Community</small>
+            <b>Telegram</b>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn btn-neon" href="YOUR_TELEGRAM_LINK" target="_blank">Join Community</a>
+          <a class="btn" href="#education">Learn</a>
+          <a class="btn" href="#tools">Tools</a>
+        </div>
+
+        <div style="margin-top:18px" class="small">Pro tip: Post short lessons daily — text + 30s voice note. Start journaling every trade; consistency & discipline beat luck.</div>
+      </div>
+
+      <aside>
+        <div class="card">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="icon" aria-hidden>FX</div>
+            <div>
+              <div style="font-weight:800">Today's Highlight</div>
+              <div class="small" style="margin-top:6px">Example: EURUSD — Look for structure at 1.0850, keep risk small.</div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px" class="small">Short breakdowns, stake guidance, and alternatives to manage risk.</div>
+
+          <div style="margin-top:12px" class="small">Share this card in Telegram as a teaching post.</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Education -->
+    <section id="education" class="card" style="margin-top:18px">
+      <h3 style="margin:0 0 8px 0">Halal FX Education</h3>
+      <div class="small">Short, actionable lessons on trading ethically — risk first, setups second, character always.</div>
+
+      <div style="margin-top:12px;display:grid;gap:10px">
+        <div class="tool" style="display:flex;gap:10px;align-items:start">
+          <div style="flex:0 0 56px"><div class="icon" style="background:linear-gradient(90deg,var(--neon-pink),var(--neon-yellow))">1</div></div>
+          <div>
+            <div style="font-weight:700">Trading Ethics & Halal Principles</div>
+            <div class="small" style="margin-top:6px">How to avoid riba (use swap-free / Islamic accounts or close before rollover), avoid gambling behaviour, and keep transparency in teaching.</div>
+          </div>
+        </div>
+
+        <div class="tool" style="display:flex;gap:10px;align-items:start">
+          <div style="flex:0 0 56px"><div class="icon" style="background:linear-gradient(90deg,var(--neon-blue),var(--neon-cyan))">2</div></div>
+          <div>
+            <div style="font-weight:700">Risk Management — Core</div>
+            <div class="small" style="margin-top:6px">Position sizing, stop placement, and expectancy. Rule: protect capital first; profits come later.</div>
+          </div>
+        </div>
+
+        <div class="tool" style="display:flex;gap:10px;align-items:start">
+          <div style="flex:0 0 56px"><div class="icon" style="background:linear-gradient(90deg,var(--neon-pink),var(--neon-cyan))">3</div></div>
+          <div>
+            <div style="font-weight:700">Market Structure & Price Action</div>
+            <div class="small" style="margin-top:6px">Support/resistance, trend, liquidity areas, and entries based on structure — not hope.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Journal -->
+    <section id="journal" class="card" style="margin-top:18px">
+      <h3 style="margin:0 0 8px 0">Trade Journal (Quick Start)</h3>
+      <div class="small">Track every trade with fields that force clarity: setup, risk, emotion, and the lesson.</div>
+
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn" href="YOUR_GOOGLE_FORM_LINK" target="_blank">Open Journal Form</a>
+        <button class="btn" onclick="alert('Tip: Create a Google Form with fields: Date, Pair, Direction, Entry, SL, TP, Risk%, Size, Reason, Emotion, Result, Notes')">Journal Template</button>
+      </div>
+
+      <details style="margin-top:10px;background:rgba(255,255,255,0.02);padding:12px;border-radius:10px">
+        <summary style="font-weight:700;cursor:pointer">Journal Fields (examples)</summary>
+        <div style="margin-top:8px" class="small">Date • Pair • Direction • Entry • Stop • Target • Risk% • Lot/Size • Reason • Emotional state • Result • Notes</div>
+      </details>
+    </section>
+
+    <!-- Tools -->
+    <section id="tools" class="card" style="margin-top:18px">
+      <h3 style="margin:0 0 8px 0">Tools</h3>
+      <div class="small">Phone-first calculators and quick external resources.</div>
+
+      <div class="grid-3">
+        <!-- Risk calculator -->
+        <div class="tool" aria-labelledby="risk-title">
+          <div id="risk-title" style="font-weight:800">Risk Calculator</div>
+          <div class="small" style="margin-top:6px">Estimate position size (lots) with simple pip approximation for common FX pairs.</div>
+
+          <div style="margin-top:10px">
+            <label>Account balance (USD)</label>
+            <input id="bal" type="number" placeholder="e.g. 1000" inputmode="numeric">
+
+            <label style="margin-top:8px">Risk % (e.g. 1)</label>
+            <input id="riskPct" type="number" placeholder="e.g. 1" inputmode="numeric">
+
+            <label style="margin-top:8px">Entry price</label>
+            <input id="entryPrice" type="number" placeholder="e.g. 1.0850" step="any">
+
+            <label style="margin-top:8px">Stop price</label>
+            <input id="stopPrice" type="number" placeholder="e.g. 1.0820" step="any">
+
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn btn-neon" onclick="calcRisk()">Calculate</button>
+              <button class="btn" onclick="clearRiskTool()">Clear</button>
+            </div>
+
+            <div id="riskOut" style="margin-top:10px" class="small"></div>
+          </div>
+        </div>
+
+        <!-- Converter -->
+        <div class="tool">
+          <div style="font-weight:800">Quick Converter</div>
+          <div class="small" style="margin-top:6px">Open live FX rates (external).</div>
+          <div style="margin-top:10px">
+            <a class="btn" href="https://www.xe.com" target="_blank">Live Rates (XE)</a>
+          </div>
+        </div>
+
+        <!-- Economic calendar -->
+        <div class="tool">
+          <div style="font-weight:800">Economic Calendar</div>
+          <div class="small" style="margin-top:6px">Always check major events before trading.</div>
+          <div style="margin-top:10px">
+            <a class="btn" href="https://www.forexfactory.com/calendar.php" target="_blank">ForexFactory Calendar</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- quick checklist -->
+    <section class="card" style="margin-top:18px">
+      <h3 style="margin:0 0 8px 0">Quick Halal Checklist</h3>
+      <ul class="small" style="line-height:1.7;margin-top:8px">
+        <li>Avoid margin/overnight interest (use swap-free accounts or close before rollover).</li>
+        <li>Trade with knowledge — avoid speculative gambling behaviour.</li>
+        <li>Use strict risk management and keep a trade journal.</li>
+        <li>Be transparent in teaching; avoid guarantees or misleading claims.</li>
+      </ul>
+    </section>
+
+    <!-- subscribe -->
+    <section class="card" style="margin-top:18px;display:flex;gap:12px;flex-direction:column">
+      <h3 style="margin:0 0 8px 0">Join & Get the Starter PDF</h3>
+      <div class="small">Subscribe to get a free starter PDF: "7 Halal Rules for FX Traders". Use a Google Form for real capture.</div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <input id="subscribeEmail" placeholder="you@example.com" style="min-width:200px">
+        <button class="btn btn-neon" onclick="subscribe()">Subscribe</button>
+        <a class="btn" href="YOUR_GOOGLE_FORM_LINK" target="_blank">Or use Google Form</a>
+      </div>
+      <div id="subMsg" class="small" style="margin-top:8px;color:var(--muted)"></div>
+    </section>
+
+  </main>
+
+  <footer>
+    © <span id="year"></span> 360 Halal_me • 360Halal-me.com — Built with intention.
+  </footer>
+</div>
+
+<script>
+  document.getElementById('year').innerText = new Date().getFullYear();
+
+  function calcRisk(){
+    const bal = parseFloat(document.getElementById('bal').value) || 0;
+    const riskPct = parseFloat(document.getElementById('riskPct').value) || 0;
+    const entry = parseFloat(document.getElementById('entryPrice').value);
+    const stop = parseFloat(document.getElementById('stopPrice').value);
+    const out = document.getElementById('riskOut');
+
+    if(!bal || !riskPct || !entry || !stop || entry===stop){
+      out.innerHTML = '<span style="color:#ff7b7b">Fill valid Balance, Risk%, Entry and Stop.</span>';
+      return;
+    }
+
+    // risk amount
+    const riskAmount = bal * (riskPct/100);
+
+    // pip distance: for pairs quoted to 4-5 decimals, pip = 0.0001 (except JPY pairs)
+    const pipDistance = Math.abs(entry - stop);
+    // approximate pip value per standard lot for USD-based account: $10 per pip
+    const pipValuePerLot = 10; // approx
+    const lots = (riskAmount) / (pipDistance * pipValuePerLot);
+
+    out.innerHTML = ''
+      + '<div>Risk amount: <strong>$' + riskAmount.toFixed(2) + '</strong></div>'
+      + '<div>Pip distance: <strong>' + pipDistance.toFixed(5) + '</strong></div>'
+      + '<div>Approx position size: <strong>' + lots.toFixed(4) + ' lots</strong></div>'
+      + '<div class="small" style="margin-top:8px;color:var(--muted)">Note: This is an estimate. Use your broker\'s exact pip/contract value to calculate precise size; JPY pairs use 2-decimal pips.</div>';
+  }
+
+  function clearRiskTool(){
+    ['bal','riskPct','entryPrice','stopPrice'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('riskOut').innerHTML = '';
+  }
+
+  function subscribe(){
+    const email = document.getElementById('subscribeEmail').value.trim();
+    const msg = document.getElementById('subMsg');
+    if(!email || !email.includes('@')){ msg.innerText = 'Enter a valid email.'; return; }
+    msg.innerText = 'Thanks! (Mock capture) — To collect emails for real, connect this button to a Google Form or webhook.';
+    document.getElementById('subscribeEmail').value = '';
+  }
+</script>
+</body>
+</html>
