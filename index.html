@@ -66,8 +66,8 @@ h2{
     }
 
     .logo{
-  height:50px;
-  width:50px;
+  height:26px;
+  width:26px;
 }
 
     nav a{
@@ -81,7 +81,23 @@ h2{
     nav a:hover{
       color:#d4af37;
     }
+.brand{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
 
+.logo{
+  height:24px;
+  width:24px;
+}
+
+.brand-text{
+  font-size:1.3rem;
+  font-weight:700;
+  color:#d4af37;
+  letter-spacing:0.5px;
+}
     /* ================= HERO ================= */
 
     .hero{
@@ -206,11 +222,11 @@ font-size:1.05rem;
 <body>
 
   <!-- ================= NAV ================= -->
-  <<nav>
-  <div style="display:flex;align-items:center;gap:10px;">
-    <img src="favicon.png" class="logo">
-    <h2 class="gold">360HH</h2>
-  </div>
+  <nav>
+  <div class="brand">
+  <img src="favicon.png" class="logo">
+  <span class="brand-text">360HH</span>
+</div>
 
   <div>
     <a href="#">Home</a>
