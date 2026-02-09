@@ -82,6 +82,7 @@ html{
       text-align:center;
       padding-top:120px;
       padding-bottom:120px;
+     background: radial-gradient(circle at top, #15151c 0%, #0b0b0f 70%);
     }
 
     .hero h1{
@@ -105,14 +106,16 @@ html{
     }
 
     .btn-gold{
-      background:#d4af37;
-      color:black;
-    }
+  background:#d4af37;
+  color:black;
+  box-shadow:0 0 18px rgba(212,175,55,0.4);
+  transition:.3s;
+}
 
-    .btn-gold:hover{
-      transform:translateY(-3px);
-      box-shadow:0 8px 20px rgba(212,175,55,0.3);
-    }
+.btn-gold:hover{
+  transform:translateY(-3px);
+  box-shadow:0 0 30px rgba(212,175,55,0.7);
+}
 
     .btn-outline{
       border:1px solid #d4af37;
@@ -143,9 +146,10 @@ html{
     }
 
     .card:hover{
-      transform:translateY(-5px);
-      border-color:#d4af37;
-    }
+  transform:translateY(-6px);
+  border-color:#d4af37;
+  box-shadow:0 0 25px rgba(212,175,55,0.15);
+}
 
     /* ================= FREE SECTION ================= */
 
