@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>360 Halal Hustlers Hub</title>
 
+  <!-- ✅ FAVICON -->
+  <link rel="icon" type="image/png" href="favicon.png">
+
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
 
   <style>
@@ -35,24 +38,43 @@
       color:#d4af37;
     }
 
-    /* NAV */
+    /* ================= NAV ================= */
+
     nav{
       display:flex;
       justify-content:space-between;
       align-items:center;
-      padding:20px;
+      padding:18px 20px;
       max-width:1100px;
       margin:auto;
+
+      position:sticky;
+      top:0;
+      background:#0b0b0f;
+      z-index:1000;
+    }
+
+    .logo{
+      height:55px;
+      object-fit:contain;
+      filter: drop-shadow(0 0 8px rgba(212,175,55,0.45));
+      cursor:pointer;
     }
 
     nav a{
       color:white;
       text-decoration:none;
-      margin-left:20px;
+      margin-left:22px;
       font-weight:500;
+      transition:.3s;
     }
 
-    /* HERO */
+    nav a:hover{
+      color:#d4af37;
+    }
+
+    /* ================= HERO ================= */
+
     .hero{
       text-align:center;
       padding-top:120px;
@@ -76,6 +98,7 @@
       font-weight:600;
       margin:10px;
       display:inline-block;
+      transition:.3s;
     }
 
     .btn-gold{
@@ -83,12 +106,23 @@
       color:black;
     }
 
+    .btn-gold:hover{
+      transform:translateY(-3px);
+      box-shadow:0 8px 20px rgba(212,175,55,0.3);
+    }
+
     .btn-outline{
       border:1px solid #d4af37;
       color:#d4af37;
     }
 
-    /* CARDS */
+    .btn-outline:hover{
+      background:#d4af37;
+      color:black;
+    }
+
+    /* ================= CARDS ================= */
+
     .grid{
       display:grid;
       grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
@@ -110,14 +144,16 @@
       border-color:#d4af37;
     }
 
-    /* FREE SECTION */
+    /* ================= FREE SECTION ================= */
+
     .free{
       text-align:center;
       background:#111118;
       border-radius:20px;
     }
 
-    /* PRODUCT */
+    /* ================= PRODUCT ================= */
+
     .product{
       text-align:center;
     }
@@ -135,14 +171,26 @@
       color:#777;
       font-size:14px;
     }
+
+    /* Mobile */
+    @media(max-width:768px){
+      .logo{
+        height:40px;
+      }
+      .hero h1{
+        font-size:2.2rem;
+      }
+    }
+
   </style>
 </head>
 
 <body>
 
-  <!-- NAV -->
+  <!-- ================= NAV ================= -->
   <nav>
-    <h2 class="gold">360HH</h2>
+    <img src="logo360.png" alt="360HH Logo" class="logo">
+
     <div>
       <a href="#">Home</a>
       <a href="#">Tools</a>
@@ -150,7 +198,7 @@
     </div>
   </nav>
 
-  <!-- HERO -->
+  <!-- ================= HERO ================= -->
   <section class="hero">
     <h1>Build Wealth The <span class="gold">Halal Way</span></h1>
     <p>AI tools, trading education and smart systems for Muslim hustlers worldwide.</p>
@@ -159,27 +207,28 @@
     <a href="#" class="btn btn-outline">Join Premium</a>
   </section>
 
-  <!-- PROBLEM -->
+  <!-- ================= WHY ================= -->
   <section>
     <h2>Why 360HH?</h2>
     <p style="color:#aaa;margin-top:15px;">
-      Most Hustlers fall into error chasing hype and shortcuts. We teach ethical, disciplined and halal strategies to grow real wealth without compromise inshā'Allah
+      Most hustlers fall into error chasing hype and shortcuts. We teach ethical,
+      disciplined and halal strategies to grow real wealth without compromise inshā'Allah.
     </p>
   </section>
 
-  <!-- SERVICES -->
+  <!-- ================= SERVICES ================= -->
   <section>
     <h2 class="gold">What We Offer</h2>
 
     <div class="grid">
       <div class="card">
         <h3>💹 Halal Trading Education</h3>
-        <p>Ethical Crypto trading (spot), risk management and halal trading frameworks.</p>
+        <p>Ethical spot crypto trading, risk management and halal frameworks.</p>
       </div>
 
       <div class="card">
         <h3>🤖 AI Tools</h3>
-        <p>Smart calculators, digital assets, journals and automation systems.</p>
+        <p>Smart calculators, Digital assets, journals and automation systems.</p>
       </div>
 
       <div class="card">
@@ -189,7 +238,7 @@
     </div>
   </section>
 
-  <!-- FREE GIFT -->
+  <!-- ================= FREE ================= -->
   <section class="free">
     <h2>🎁 Free Halal Trader Starter Pack</h2>
     <p style="margin:15px 0;color:#aaa;">
@@ -198,7 +247,7 @@
     <a href="#" class="btn btn-gold">Download Free</a>
   </section>
 
-  <!-- PRODUCT -->
+  <!-- ================= PRODUCT ================= -->
   <section class="product">
     <h2 class="gold">360HH Trading Journal Pro</h2>
     <p>Track trades, manage risk and grow consistently.</p>
@@ -206,7 +255,7 @@
     <a href="#" class="btn btn-gold">Buy Now</a>
   </section>
 
-  <!-- FOOTER -->
+  <!-- ================= FOOTER ================= -->
   <footer>
     © 2026 360 Halal Hustlers Hub • Built with discipline & barakah
   </footer>
