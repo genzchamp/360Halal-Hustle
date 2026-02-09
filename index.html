@@ -22,13 +22,13 @@ html{
 }
 
     body{
-      background:#0b0b0f;
-      color:#fff;
-      line-height:1.6;
-    }
+  background: linear-gradient(180deg,#0b0b0f,#0f0f16);
+  color:#fff;
+  line-height:1.6;
+}
 
     section{
-      padding:80px 20px;
+      padding:110px 20px;
       max-width:1100px;
       margin:auto;
     }
@@ -36,7 +36,15 @@ html{
     h1,h2{
       font-weight:700;
     }
+h1{
+  font-size:3.2rem;
+  letter-spacing:-1px;
+}
 
+h2{
+  font-size:2rem;
+  margin-bottom:20px;
+}
     .gold{
       color:#d4af37;
     }
@@ -65,7 +73,7 @@ html{
     nav a{
       color:white;
       text-decoration:none;
-      margin-left:22px;
+      margin-left:20px;
       font-weight:500;
       transition:.3s;
     }
@@ -91,17 +99,21 @@ html{
     .hero p{
       color:#aaa;
       margin-bottom:35px;
+      max-width:600px;
+margin-left:auto;
+margin-right:auto;
+font-size:1.05rem;
     }
 
     .btn{
-      padding:14px 28px;
-      border-radius:30px;
-      text-decoration:none;
-      font-weight:600;
-      margin:10px;
-      display:inline-block;
-      transition:.3s;
-    }
+  padding:16px 32px;
+  border-radius:40px;
+  text-decoration:none;
+  font-weight:600;
+  margin:10px;
+  display:inline-block;
+  transition:.3s;
+}
 
     .btn-gold{
   background:#d4af37;
@@ -135,13 +147,14 @@ html{
     }
 
     .card{
-      background:#15151c;
-      padding:30px;
-      border-radius:18px;
-      text-align:center;
-      border:1px solid #1f1f29;
-      transition:.3s;
-    }
+  background:rgba(255,255,255,0.03);
+  padding:35px;
+  border-radius:20px;
+  text-align:center;
+  border:1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(8px);
+  transition:.3s;
+}
 
     .card:hover{
   transform:translateY(-6px);
