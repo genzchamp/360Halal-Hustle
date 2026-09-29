@@ -14,7 +14,7 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function riskCheck({account=10000, entry, stop, target, openPositions=0, dailyLoss=0}) {
+function riskCheck({account=10000, entry, stop, target, quantity=0, openPositions=0, dailyLoss=0}) {
   entry=Number(entry); stop=Number(stop); target=Number(target);
   if (![entry,stop,target].every(Number.isFinite) || entry<=0 || stop<=0 || target<=entry)
     return {allowed:false, code:"INVALID_ORDER", reason:"Invalid entry, stop or target."};
@@ -27,9 +27,13 @@ function riskCheck({account=10000, entry, stop, target, openPositions=0, dailyLo
   const riskAmount=Number(account)*MAX_RISK;
   const qty=riskAmount/riskPerUnit;
   const rewardPerUnit=target-entry;
+  const requestedQty=Math.floor(Number(quantity)||0);
+  if(requestedQty<1) return {allowed:false, code:"INVALID_QUANTITY", reason:"Quantity must be at least 1."};
+  const requestedRisk=riskPerUnit*requestedQty;
+  if(requestedRisk>riskAmount) return {allowed:false, code:"POSITION_RISK", reason:"Requested position risk exceeds the server risk limit.", requestedRisk, maxRisk:riskAmount};
   if (rewardPerUnit/riskPerUnit<1)
     return {allowed:false, code:"REWARD_RISK", reason:"Reward/risk must be at least 1:1."};
-  return {allowed:true, code:"ALLOWED", riskAmount, quantity:qty, rewardRisk:rewardPerUnit/riskPerUnit};
+  return {allowed:true, code:"ALLOWED", riskAmount, quantity:requestedQty, requestedRisk, rewardRisk:rewardPerUnit/riskPerUnit};
 }
 
 async function body(req) {
