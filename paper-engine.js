@@ -8,7 +8,7 @@ function savePaper(s){localStorage.setItem(OBA_PAPER_KEY,JSON.stringify(s));rend
 function paperNum(v){const n=Number(v);return Number.isFinite(n)?n:0}
 function shariahGate(symbol){const x=SHARIAH_WATCHLIST[String(symbol).toUpperCase()];return x?{allowed:true,reason:x.label+"; this is not a fatwa or live certification."}:{allowed:false,reason:"Symbol is not on the prototype approved watchlist."}}
 function paperWeek(){const d=new Date(),first=new Date(d.getFullYear(),0,1);return Math.ceil((((d-first)/86400000)+first.getDay()+1)/7)}
-function paperRiskInputs(){const s=paperState();const daily=s.journal.filter(x=>x.day===new Date().toISOString().slice(0,10)&&x.pnl<0).reduce((a,x)=>a+Math.abs(x.pnl),0);const weekly=s.journal.filter(x=>x.week===paperWeek()&&x.pnl<0).reduce((a,x)=>a+Math.abs(x.pnl),0);return{positions:s.positions.length,dailyLoss:daily/s.balance*100,weeklyLoss:weekly/s.balance*100}}
+function paperRiskInputs(){const s=paperState();const daily=s.journal.filter(x=>x.day===new Date().toISOString().slice(0,10)&&x.pnl<0).reduce((a,x)=>a+Math.abs(x.pnl),0);const weekly=s.journal.filter(x=>x.week===paperWeek()&&x.pnl<0).reduce((a,x)=>a+Math.abs(x.pnl),0);return{positions:s.positions.length,dailyLoss:daily/s.balance,weeklyLoss:weekly/s.balance}}
 function openPaperOrder(){const html=\`<div class="formgrid">
 <label>Asset<select id="poSymbol"><option>AAPL</option><option>MSFT</option><option>TSLA</option><option>NVDA</option></select></label>
 <label>Side<select id="poSide"><option value="BUY">Buy</option></select></label>
@@ -22,10 +22,15 @@ mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open")}
 function submitPaperOrder(){const symbol=document.getElementById("poSymbol").value.toUpperCase(),entry=paperNum(document.getElementById("poEntry").value),stop=paperNum(document.getElementById("poStop").value),target=paperNum(document.getElementById("poTarget").value),qty=Math.floor(paperNum(document.getElementById("poQty").value)),gate=shariahGate(symbol),s=paperState();
 if(!gate.allowed){closeM();modal("Shariah gate blocked",gate.reason);paperLog(symbol,"ENTRY","BLOCKED",0,gate.reason);return}
 if(qty<1){closeM();modal("Order blocked","Quantity must be at least 1.");return}
-const rd=paperRiskInputs(),decision=riskDecision({account:s.balance,entry,stop,target,positions:rd.positions,dailyLoss:rd.dailyLoss,weeklyLoss:rd.weeklyLoss}),requestedRisk=entry*qty*(decision.stopPct/100),maxRisk=s.balance*(getRiskConfig().positionRisk/100);
-if(requestedRisk>maxRisk){closeM();modal("Risk gate blocked",\`Requested risk is $\${requestedRisk.toFixed(2)}; configured maximum is $\${maxRisk.toFixed(2)}.\`);paperLog(symbol,"ENTRY","BLOCKED",0,"Position risk exceeds limit");return}
+const rd=paperRiskInputs(),decision=riskDecision({account:s.balance,entry,stop,target,positions:rd.positions,dailyLoss:rd.dailyLoss*100,weeklyLoss:rd.weeklyLoss*100}),requestedRisk=entry*qty*(decision.stopPct/100),maxRisk=s.balance*(getRiskConfig().positionRisk/100);
+if(requestedRisk>maxRisk){closeM();modal("Risk gate blocked",`Requested risk is $${requestedRisk.toFixed(2)}; configured maximum is $${maxRisk.toFixed(2)}.`);paperLog(symbol,"ENTRY","BLOCKED",0,"Position risk exceeds limit");return}
 if(!decision.allowed){closeM();modal("Risk gate blocked",decision.reasons.join(" "));paperLog(symbol,"ENTRY","BLOCKED",0,decision.reasons.join(" "));return}
-const position={id:Date.now().toString(),symbol,side:"BUY",entry,stop,target,qty,current:entry,opened:new Date().toISOString()};s.positions.push(position);paperLogInto(s,symbol,"ENTRY","FILLED",0,"Shariah gate passed; risk gate passed");savePaper(s);closeM();modal("Paper fill confirmed",\`BUY \${qty} \${symbol} at $\${entry.toFixed(2)}. No real order was sent.\`)}
+try{
+  const remote=await obaApi("/api/paper/orders",{method:"POST",body:JSON.stringify({account:s.balance,symbol,entry,stop,target,openPositions:rd.positions,dailyLoss:rd.dailyLoss})});
+  const position={id:remote.id||Date.now().toString(),symbol,side:"BUY",entry,stop,target,qty:Math.floor(Number(remote.quantity)||qty),current:entry,opened:new Date().toISOString(),apiOrderId:remote.id};
+  s.positions.push(position);paperLogInto(s,symbol,"ENTRY","FILLED",0,"Render API accepted; Shariah gate passed; server risk gate passed");savePaper(s);closeM();modal("Paper fill confirmed",`BUY ${position.qty} ${symbol} at $${entry.toFixed(2)}. Render accepted the paper order. No real order was sent.`)
+}catch(err){closeM();modal("Server risk gate blocked",err.message);paperLog(symbol,"ENTRY","BLOCKED",0,"Render API: "+err.message)}
+}
 function paperLog(symbol,action,status,pnl,reason){const s=paperState();paperLogInto(s,symbol,action,status,pnl,reason);savePaper(s)}
 function paperLogInto(s,symbol,action,status,pnl,reason){const d=new Date();s.journal.unshift({time:d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}),day:d.toISOString().slice(0,10),week:paperWeek(),symbol,action,status,pnl:Number(pnl)||0,reason});s.journal=s.journal.slice(0,30)}
 function simulateMarket(){const s=paperState();s.positions.forEach(p=>{p.current=Math.max(.01,p.current*(1+(Math.random()-.46)*.012))});const closed=[];s.positions=s.positions.filter(p=>{if(p.current<=p.stop||p.current>=p.target){const pnl=(p.current-p.entry)*p.qty;s.balance+=pnl;closed.push({p,pnl});return false}return true});closed.forEach(({p,pnl})=>paperLogInto(s,p.symbol,"EXIT",pnl>=0?"TARGET":"STOP",pnl,pnl>=0?"Target reached":"Stop-loss reached"));s.equity=s.balance+s.positions.reduce((a,p)=>a+(p.current-p.entry)*p.qty,0);savePaper(s)}
