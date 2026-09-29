@@ -10,7 +10,7 @@ const audit = [];
 const paperOrders = [];
 
 function json(res, status, body) {
-  res.writeHead(status, {"content-type":"application/json","cache-control":"no-store"});
+  res.writeHead(status, {"content-type":"application/json","cache-control":"no-store","access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,OPTIONS","access-control-allow-headers":"content-type,authorization"});
   res.end(JSON.stringify(body));
 }
 
@@ -40,7 +40,8 @@ async function body(req) {
 
 const server=http.createServer(async (req,res)=>{
   try {
-    if(req.method==="GET" && req.url==="/api/health")
+    if(req.method==="OPTIONS") return json(res,204,{});
+    if(req.method==="GET" && (req.url==="/health" || req.url==="/api/health"))
       return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false});
     if(req.method==="POST" && req.url==="/api/risk/check"){
       const input=await body(req), decision=riskCheck(input);
@@ -66,4 +67,4 @@ const server=http.createServer(async (req,res)=>{
   }
 });
 
-server.listen(PORT,()=>console.log("OBA AI Trader API listening on "+PORT));
+server.listen(PORT,"0.0.0.0",()=>console.log("OBA AI Trader API listening on "+PORT));
