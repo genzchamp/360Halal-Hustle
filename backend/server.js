@@ -46,6 +46,8 @@ async function body(req) {
 const server=http.createServer(async (req,res)=>{
   try {
     if(req.method==="OPTIONS") return json(res,204,{});
+    if(req.method==="GET" && req.url==="/")
+      return json(res,200,{ok:true,service:"oba-ai-trader-api",status:"ONLINE",mode:"paper",liveExecution:false,persistence:"in-memory prototype",message:"OBA AI Trader API is running."});
     if(req.method==="GET" && (req.url==="/health" || req.url==="/api/health"))
       return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false});
     if(req.method==="POST" && req.url==="/api/risk/check"){
