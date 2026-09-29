@@ -22,4 +22,4 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()})
 document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',e=>{
   const el=document.querySelector(a.getAttribute('href')); if(el){e.preventDefault();el.scrollIntoView({behavior:'smooth',block:'start'})}
 }))
-</script><script src="risk-engine.js"></script><script src="paper-engine.js"></script><script src="backtest-engine.js"></script><script src="historical-backtest.js"></script></body></html>
+</script><script src="risk-engine.js"></script><script src="api-client.js"></script><script src="paper-engine.js"></script><script src="backtest-engine.js"></script><script src="historical-backtest.js"></script></body></html>
