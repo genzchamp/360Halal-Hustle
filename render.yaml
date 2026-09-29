@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: oba-ai-trader-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: MAX_RISK_PER_TRADE
+        value: "0.01"
+      - key: MAX_DAILY_LOSS
+        value: "0.02"
+      - key: MAX_OPEN_POSITIONS
+        value: "3"
