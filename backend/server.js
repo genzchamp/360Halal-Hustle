@@ -8,6 +8,7 @@ const MAX_OPEN_POSITIONS = Number(process.env.MAX_OPEN_POSITIONS || 3);
 
 const audit = [];
 const paperOrders = [];
+const SHARIAH_WATCHLIST = new Set(["AAPL","MSFT"]);
 
 function json(res, status, body) {
   res.writeHead(status, {"content-type":"application/json","cache-control":"no-store","access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,OPTIONS","access-control-allow-headers":"content-type,authorization"});
@@ -53,7 +54,10 @@ const server=http.createServer(async (req,res)=>{
       return json(res,decision.allowed?200:422,decision);
     }
     if(req.method==="POST" && req.url==="/api/paper/orders"){
-      const input=await body(req), decision=riskCheck(input);
+      const input=await body(req);
+      const symbol=String(input.symbol||"").toUpperCase();
+      if(!SHARIAH_WATCHLIST.has(symbol)) return json(res,422,{status:"BLOCKED",code:"SHARIAH_GATE",reason:"Symbol is not on the prototype approved watchlist."});
+      const decision=riskCheck(input);
       const event={id:randomUUID(),at:new Date().toISOString(),input,decision,status:decision.allowed?"ACCEPTED":"BLOCKED"};
       audit.push({id:event.id,type:"PAPER_ORDER",...event});
       if(!decision.allowed) return json(res,422,event);
