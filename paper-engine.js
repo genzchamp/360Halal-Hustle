@@ -19,7 +19,7 @@ function openPaperOrder(){const html=\`<div class="formgrid">
 <div class="paper-note">PAPER ONLY · Order fills at the simulated entry price. Shariah screening and deterministic risk checks run before the fill.</div>
 <div class="actions"><button class="btn primary" onclick="submitPaperOrder()">Validate & simulate fill</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>\`;
 mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open")}
-function submitPaperOrder(){const symbol=document.getElementById("poSymbol").value.toUpperCase(),entry=paperNum(document.getElementById("poEntry").value),stop=paperNum(document.getElementById("poStop").value),target=paperNum(document.getElementById("poTarget").value),qty=Math.floor(paperNum(document.getElementById("poQty").value)),gate=shariahGate(symbol),s=paperState();
+async function submitPaperOrder(){const symbol=document.getElementById("poSymbol").value.toUpperCase(),entry=paperNum(document.getElementById("poEntry").value),stop=paperNum(document.getElementById("poStop").value),target=paperNum(document.getElementById("poTarget").value),qty=Math.floor(paperNum(document.getElementById("poQty").value)),gate=shariahGate(symbol),s=paperState();
 if(!gate.allowed){closeM();modal("Shariah gate blocked",gate.reason);paperLog(symbol,"ENTRY","BLOCKED",0,gate.reason);return}
 if(qty<1){closeM();modal("Order blocked","Quantity must be at least 1.");return}
 const rd=paperRiskInputs(),decision=riskDecision({account:s.balance,entry,stop,target,positions:rd.positions,dailyLoss:rd.dailyLoss*100,weeklyLoss:rd.weeklyLoss*100}),requestedRisk=entry*qty*(decision.stopPct/100),maxRisk=s.balance*(getRiskConfig().positionRisk/100);
