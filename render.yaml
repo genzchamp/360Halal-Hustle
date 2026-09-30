@@ -14,3 +14,7 @@ services:
         value: "0.02"
       - key: MAX_OPEN_POSITIONS
         value: "3"
+      - key: SUPABASE_URL
+        value: "https://dlcncozasilbfsfwcjcq.supabase.co"
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: "sb_publishable_WzM9SwxQRaeBN3deVmx7BQ_iHw4T4n2"
