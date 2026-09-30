@@ -18,7 +18,7 @@ function bearer(req){const h=req.headers.authorization||"";return h.startsWith("
 async function auth(req){
   if(!SUPABASE_URL||!SUPABASE_PUBLISHABLE_KEY)return{error:"SERVER_AUTH_NOT_CONFIGURED"};
   const token=bearer(req);if(!token)return{error:"AUTH_REQUIRED"};
-  const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false}});
+  const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false},global:{headers:{"Authorization":"Bearer "+token}}});
   const {data,error}=await supabase.auth.getUser(token);
   if(error||!data.user)return{error:"INVALID_AUTH"};
   return{supabase,user:data.user};
