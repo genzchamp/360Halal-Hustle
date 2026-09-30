@@ -9,7 +9,7 @@ function paperNum(v){const n=Number(v);return Number.isFinite(n)?n:0}
 function shariahGate(symbol){const x=SHARIAH_WATCHLIST[String(symbol).toUpperCase()];return x?{allowed:true,reason:x.label+"; this is not a fatwa or live certification."}:{allowed:false,reason:"Symbol is not on the prototype approved watchlist."}}
 function paperWeek(){const d=new Date(),first=new Date(d.getFullYear(),0,1);return Math.ceil((((d-first)/86400000)+first.getDay()+1)/7)}
 function paperRiskInputs(){const s=paperState();const daily=s.journal.filter(x=>x.day===new Date().toISOString().slice(0,10)&&x.pnl<0).reduce((a,x)=>a+Math.abs(x.pnl),0);const weekly=s.journal.filter(x=>x.week===paperWeek()&&x.pnl<0).reduce((a,x)=>a+Math.abs(x.pnl),0);return{positions:s.positions.length,dailyLoss:daily/s.balance,weeklyLoss:weekly/s.balance}}
-function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");const cfg=getRiskConfig();const html=\`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH SCREENING</span><strong>Checking selected asset…</strong><p>Prototype watchlist only. Not a fatwa or live certification.</p></div><div class="formgrid">
+function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");const cfg=getRiskConfig();const html=`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH SCREENING</span><strong>Checking selected asset…</strong><p>Prototype watchlist only. Not a fatwa or live certification.</p></div><div class="formgrid">
 <label>Asset<select id="poSymbol" onchange="updatePaperTicket()"><option>AAPL</option><option>MSFT</option><option>TSLA</option><option>NVDA</option></select></label>
 <label>Side<select id="poSide"><option value="BUY">Buy</option></select></label>
 <label>Entry price<input id="poEntry" type="number" step="0.01" value="252.84" oninput="updatePaperTicket()"></label>
@@ -19,7 +19,7 @@ function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.get
 <label>Quantity<input id="poQty" type="number" min="1" step="1" value="39" oninput="updatePaperRiskReadout()"></label></div>
 <div class="paper-note" id="paperRiskReadout">Calculating risk…</div>
 <div class="paper-note">PAPER ONLY · Order fills at the simulated entry price. Shariah screening runs before the deterministic risk gate.</div>
-<div class="actions"><button class="btn primary" onclick="submitPaperOrder()">Validate & simulate fill</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>\`;
+<div class="actions"><button class="btn primary" onclick="submitPaperOrder()">Validate & simulate fill</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`;
 mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open");updatePaperTicket()}
 function updatePaperTicket(){
   const symbol=document.getElementById("poSymbol")?.value?.toUpperCase();
