@@ -9,20 +9,52 @@ function paperNum(v){const n=Number(v);return Number.isFinite(n)?n:0}
 function shariahGate(symbol){const x=SHARIAH_WATCHLIST[String(symbol).toUpperCase()];return x?{allowed:true,reason:x.label+"; this is not a fatwa or live certification."}:{allowed:false,reason:"Symbol is not on the prototype approved watchlist."}}
 function paperWeek(){const d=new Date(),first=new Date(d.getFullYear(),0,1);return Math.ceil((((d-first)/86400000)+first.getDay()+1)/7)}
 function paperRiskInputs(){const s=paperState();const daily=s.journal.filter(x=>x.day===new Date().toISOString().slice(0,10)&&x.pnl<0).reduce((a,x)=>a+Math.abs(x.pnl),0);const weekly=s.journal.filter(x=>x.week===paperWeek()&&x.pnl<0).reduce((a,x)=>a+Math.abs(x.pnl),0);return{positions:s.positions.length,dailyLoss:daily/s.balance,weeklyLoss:weekly/s.balance}}
-function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");const html=`<div class="formgrid">
-<label>Asset<select id="poSymbol"><option>AAPL</option><option>MSFT</option><option>TSLA</option><option>NVDA</option></select></label>
+function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");const cfg=getRiskConfig();const html=\`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH SCREENING</span><strong>Checking selected asset…</strong><p>Prototype watchlist only. Not a fatwa or live certification.</p></div><div class="formgrid">
+<label>Asset<select id="poSymbol" onchange="updatePaperTicket()"><option>AAPL</option><option>MSFT</option><option>TSLA</option><option>NVDA</option></select></label>
 <label>Side<select id="poSide"><option value="BUY">Buy</option></select></label>
-<label>Entry price<input id="poEntry" type="number" step="0.01" value="252.84"></label>
-<label>Stop price<input id="poStop" type="number" step="0.01" value="247.78"></label>
-<label>Target price<input id="poTarget" type="number" step="0.01" value="264.98"></label>
-<label>Quantity<input id="poQty" type="number" min="1" step="1" value="10"></label></div>
-<div class="paper-note">PAPER ONLY · Order fills at the simulated entry price. Shariah screening and deterministic risk checks run before the fill.</div>
-<div class="actions"><button class="btn primary" onclick="submitPaperOrder()">Validate & simulate fill</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`;
-mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open")}
-async function submitPaperOrder(){const symbol=document.getElementById("poSymbol").value.toUpperCase(),entry=paperNum(document.getElementById("poEntry").value),stop=paperNum(document.getElementById("poStop").value),target=paperNum(document.getElementById("poTarget").value),qty=Math.floor(paperNum(document.getElementById("poQty").value)),gate=shariahGate(symbol),s=paperState();
+<label>Entry price<input id="poEntry" type="number" step="0.01" value="252.84" oninput="updatePaperTicket()"></label>
+<label>Stop price<input id="poStop" type="number" step="0.01" value="250.32" oninput="updatePaperTicket()"></label>
+<label>Target price<input id="poTarget" type="number" step="0.01" value="258.38" oninput="updatePaperTicket()"></label>
+<label>Risk per trade<input id="poRisk" type="number" min="0.1" max="5" step="0.1" value="${(cfg.positionRisk*100).toFixed(1)}" oninput="updatePaperTicket()"></label>
+<label>Quantity<input id="poQty" type="number" min="1" step="1" value="39" oninput="updatePaperRiskReadout()"></label></div>
+<div class="paper-note" id="paperRiskReadout">Calculating risk…</div>
+<div class="paper-note">PAPER ONLY · Order fills at the simulated entry price. Shariah screening runs before the deterministic risk gate.</div>
+<div class="actions"><button class="btn primary" onclick="submitPaperOrder()">Validate & simulate fill</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>\`;
+mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open");updatePaperTicket()}
+function updatePaperTicket(){
+  const symbol=document.getElementById("poSymbol")?.value?.toUpperCase();
+  const entry=paperNum(document.getElementById("poEntry")?.value);
+  const stop=paperNum(document.getElementById("poStop")?.value);
+  const riskInput=document.getElementById("poRisk");
+  const qty=document.getElementById("poQty");
+  const cfg=getRiskConfig();
+  const gate=shariahGate(symbol);
+  const status=document.getElementById("paperShariahStatus");
+  if(status)status.innerHTML=`<span class="sub">SHARIAH SCREENING</span><strong style="color:${gate.allowed?"var(--g)":"var(--gold)"}">${gate.allowed?"✓ "+gate.reason:"⚠ "+gate.reason}</strong><p>Prototype status only; production screening needs documented methodology, current data and scholarly review.</p>`;
+  if(riskInput && !riskInput.matches(":focus")) riskInput.value=(cfg.positionRisk*100).toFixed(1);
+  const s=paperState();
+  const riskPct=paperNum(riskInput?.value)/100;
+  const perShare=Math.max(0,entry-stop);
+  const maxRisk=s.balance*riskPct;
+  const suggested=perShare>0?Math.max(1,Math.floor(maxRisk/perShare)):1;
+  if(qty && !qty.matches(":focus")) qty.value=suggested;
+  updatePaperRiskReadout();
+}
+function updatePaperRiskReadout(){
+  const entry=paperNum(document.getElementById("poEntry")?.value);
+  const stop=paperNum(document.getElementById("poStop")?.value);
+  const qty=Math.floor(paperNum(document.getElementById("poQty")?.value));
+  const riskPct=paperNum(document.getElementById("poRisk")?.value)/100;
+  const s=paperState();
+  const risk=Math.max(0,entry-stop)*qty;
+  const max=s.balance*riskPct;
+  const el=document.getElementById("paperRiskReadout");
+  if(el)el.innerHTML=`<b>Position risk:</b> ${risk.toFixed(2)} / ${max.toFixed(2)} allowed · ${max>0?((risk/max)*100).toFixed(0):0}% of selected risk budget. ${risk<=max?"✓ Within selected risk":"⚠ Reduce quantity or tighten the stop."}`;
+}
+async function submitPaperOrder(){const symbol=document.getElementById("poSymbol").value.toUpperCase(),entry=paperNum(document.getElementById("poEntry").value),stop=paperNum(document.getElementById("poStop").value),target=paperNum(document.getElementById("poTarget").value),qty=Math.floor(paperNum(document.getElementById("poQty").value)),gate=shariahGate(symbol),s=paperState(),selectedRisk=paperNum(document.getElementById("poRisk")?.value)/100;
 if(!gate.allowed){closeM();modal("Shariah gate blocked",gate.reason);paperLog(symbol,"ENTRY","BLOCKED",0,gate.reason);return}
 if(qty<1){closeM();modal("Order blocked","Quantity must be at least 1.");return}
-const rd=paperRiskInputs(),decision=riskDecision({account:s.balance,entry,stop,target,positions:rd.positions,dailyLoss:rd.dailyLoss*100,weeklyLoss:rd.weeklyLoss*100}),requestedRisk=entry*qty*(decision.stopPct/100),maxRisk=s.balance*(getRiskConfig().positionRisk/100);
+const rd=paperRiskInputs(),decision=riskDecision({account:s.balance,entry,stop,target,positions:rd.positions,dailyLoss:rd.dailyLoss*100,weeklyLoss:rd.weeklyLoss*100}),requestedRisk=Math.max(0,entry-stop)*qty,maxRisk=s.balance*selectedRisk;
 if(requestedRisk>maxRisk){closeM();modal("Risk gate blocked",`Requested risk is $${requestedRisk.toFixed(2)}; configured maximum is $${maxRisk.toFixed(2)}.`);paperLog(symbol,"ENTRY","BLOCKED",0,"Position risk exceeds limit");return}
 if(!decision.allowed){closeM();modal("Risk gate blocked",decision.reasons.join(" "));paperLog(symbol,"ENTRY","BLOCKED",0,decision.reasons.join(" "));return}
 try{
