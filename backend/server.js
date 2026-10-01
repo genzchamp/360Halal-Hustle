@@ -89,18 +89,12 @@ const server=http.createServer(async(req,res)=>{
   }
   if(req.method==="POST"&&req.url==="/api/paper/tick"){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
-    const {data:positions,error}=await a.supabase.from("paper_positions").select("*").eq("user_id",a.user.id).eq("status","OPEN");
-    if(error)throw error;
-    const closed=[];
-    for(const p of positions||[]){
-      const current=Math.max(0.01,Number(p.current_price||p.entry)*(1+(Math.random()-.46)*0.012));
-      if(current<=Number(p.stop)||current>=Number(p.target)){
-        const result=await closePaperPosition(a.supabase,a.user.id,p.id,current,current>=Number(p.target)?"TARGET":"STOP");
-        closed.push({...result,price:current});
-      }else{
-        const {error:ue}=await a.supabase.from("paper_positions").update({current_price:current}).eq("id",p.id).eq("user_id",a.user.id).eq("status","OPEN");if(ue)throw ue;
-      }
+    const {data:tickResult,error}=await a.supabase.rpc("tick_paper_positions_atomic");
+    if(error){
+      if(error.message==="AUTH_REQUIRED")return json(res,401,{error:"AUTH_REQUIRED"},origin);
+      throw error;
     }
+    const closed=Array.isArray(tickResult)?tickResult:[];
     return json(res,200,{state:await paperState(a.supabase,a.user.id),closed},origin);
   }
   if(req.method==="POST"&&req.url.startsWith("/api/paper/positions/")&&req.url.endsWith("/close")){
