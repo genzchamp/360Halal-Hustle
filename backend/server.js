@@ -87,6 +87,19 @@ const server=http.createServer(async(req,res)=>{
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
     return json(res,200,await paperState(a.supabase,a.user.id),origin);
   }
+  if(req.method==="POST"&&req.url==="/api/paper/reset"){
+    const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
+    const {data,error}=await a.supabase.rpc("reset_paper_account_atomic");
+    if(error){
+      const map={
+        AUTH_REQUIRED:["AUTH_REQUIRED","Authentication is required."],
+        PAPER_ACCOUNT_NOT_FOUND:["PAPER_ACCOUNT_NOT_FOUND","Paper account could not be found."]
+      };
+      const [code,reason]=map[String(error.message||"")]||["RESET_REJECTED","Paper account reset was rejected by the server."];
+      return json(res,422,{status:"BLOCKED",code,reason},origin);
+    }
+    return json(res,200,{status:"RESET",...data},origin);
+  }
   if(req.method==="POST"&&req.url==="/api/paper/tick"){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
     const {data:tickResult,error}=await a.supabase.rpc("tick_paper_positions_atomic");
