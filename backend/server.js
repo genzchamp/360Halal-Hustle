@@ -54,7 +54,11 @@ async function paperState(supabase,userId){
   if(pe||oe||je)throw pe||oe||je;
   const open=(positions||[]).filter(p=>p.status==="OPEN");
   const unrealized=open.reduce((sum,p)=>sum+(Number(p.current_price||p.entry)-Number(p.entry))*Number(p.quantity),0);
-  return {account,equity:Number(account.balance)+unrealized,positions:positions||[],orders:orders||[],journal:journal||[]};
+  const now=new Date(), dayStart=new Date(now); dayStart.setHours(0,0,0,0);
+  const weekStart=new Date(dayStart), weekday=weekStart.getDay(); weekStart.setDate(weekStart.getDate()-(weekday===0?6:weekday-1));
+  const lossSince=(ms)=> (journal||[]).reduce((sum,j)=>{const t=Date.parse(j.created_at||"");const pnl=Number(j.pnl||0);return t>=ms&&pnl<0?sum+Math.abs(pnl):sum},0);
+  const balance=Math.max(Number(account.balance)||0,0), dailyLossAmount=lossSince(dayStart.getTime()), weeklyLossAmount=lossSince(weekStart.getTime());
+  return {account,equity:balance+unrealized,positions:positions||[],orders:orders||[],journal:journal||[],risk:{maxRiskPerTrade:MAX_RISK,maxDailyLoss:MAX_DAILY_LOSS,maxOpenPositions:MAX_OPEN_POSITIONS,openPositions:open.length,dailyLossAmount, dailyLossPct:balance?dailyLossAmount/balance:0,weeklyLossAmount,weeklyLossPct:balance?weeklyLossAmount/balance:0}};
 }
 async function closePaperPosition(supabase,userId,positionId,currentPrice,reason="MANUAL"){
   const price=Number(currentPrice);
@@ -117,7 +121,9 @@ const server=http.createServer(async(req,res)=>{
   }
   if(req.method==="POST"&&req.url==="/api/risk/check"){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
-    const input=await body(req),decision=riskCheck(input);await auditEvent(a.supabase,a.user.id,"RISK_CHECK",input,decision.allowed?"ALLOWED":"BLOCKED",decision.reason);return json(res,decision.allowed?200:422,decision,origin);
+    const input=await body(req),state=await paperState(a.supabase,a.user.id);
+    const decision=riskCheck({...input,account:Number(state.account?.balance)||0,openPositions:Number(state.risk?.openPositions)||0,dailyLoss:Number(state.risk?.dailyLossPct)||0});
+    await auditEvent(a.supabase,a.user.id,"RISK_CHECK",input,decision.allowed?"ALLOWED":"BLOCKED",decision.reason);return json(res,decision.allowed?200:422,decision,origin);
   }
   if((req.url==="/api/paper/orders"||req.url==="/api/audit")&&(req.method==="GET"||req.method==="POST")){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
