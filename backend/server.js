@@ -116,15 +116,41 @@ const server=http.createServer(async(req,res)=>{
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
     if(req.method==="GET"&&req.url==="/api/audit"){const {data,error}=await a.supabase.from("audit_events").select("*").order("created_at",{ascending:false}).limit(200);if(error)throw error;return json(res,200,{events:data||[]},origin)}
     if(req.method==="GET"&&req.url==="/api/paper/orders"){const {data,error}=await a.supabase.from("paper_orders").select("*").order("created_at",{ascending:false}).limit(200);if(error)throw error;return json(res,200,{orders:data||[]},origin)}
-    const input=await body(req),symbol=String(input.symbol||"").toUpperCase(),account=await ensureAccount(a.supabase,a.user.id);
-    if(!SHARIAH_WATCHLIST.has(symbol)){await auditEvent(a.supabase,a.user.id,"PAPER_ORDER",input,"BLOCKED","Symbol is not on the prototype approved watchlist.");return json(res,422,{status:"BLOCKED",code:"SHARIAH_GATE",reason:"Symbol is not on the prototype approved watchlist."},origin)}
-    const decision=riskCheck({...input,account:account.balance});
-    await auditEvent(a.supabase,a.user.id,"PAPER_ORDER",input,decision.allowed?"ACCEPTED":"BLOCKED",decision.reason);
-    if(!decision.allowed)return json(res,422,{status:"BLOCKED",...decision},origin);
-    const orderInsert={user_id:a.user.id,account_id:account.id,symbol,side:"BUY",entry:Number(input.entry),stop:Number(input.stop),target:Number(input.target),quantity:decision.quantity,status:"ACCEPTED"};
-    const {data:order,error:orderError}=await a.supabase.from("paper_orders").insert(orderInsert).select("*").single();if(orderError)throw orderError;
-    const pos=await a.supabase.from("paper_positions").insert({user_id:a.user.id,account_id:account.id,order_id:order.id,symbol,side:"BUY",entry:order.entry,stop:order.stop,target:order.target,quantity:order.quantity,status:"OPEN",current_price:order.entry}).select("*").single();if(pos.error)throw pos.error;
-    return json(res,201,{id:order.id,status:"SIMULATED",side:order.side,symbol:order.symbol,entry:order.entry,stop:order.stop,target:order.target,quantity:order.quantity,createdAt:order.created_at},origin);
+    const input=await body(req),symbol=String(input.symbol||"").toUpperCase();
+    if(!SHARIAH_WATCHLIST.has(symbol)){
+      await auditEvent(a.supabase,a.user.id,"PAPER_ORDER",input,"BLOCKED","Symbol is not on the prototype approved watchlist.");
+      return json(res,422,{status:"BLOCKED",code:"SHARIAH_GATE",reason:"Symbol is not on the prototype approved watchlist."},origin);
+    }
+    const {data,resultError}=await Promise.resolve({data:null,resultError:null});
+    const rpc=await a.supabase.rpc("create_paper_order_atomic",{
+      p_symbol:symbol,
+      p_entry:Number(input.entry),
+      p_stop:Number(input.stop),
+      p_target:Number(input.target),
+      p_quantity:Number(input.quantity),
+      p_side:"BUY"
+    });
+    if(rpc.error){
+      const map={
+        AUTH_REQUIRED:["AUTH_REQUIRED","Authentication is required."],
+        SHARIAH_GATE:["SHARIAH_GATE","Symbol is not on the approved watchlist."],
+        SIDE_NOT_ALLOWED:["SIDE_NOT_ALLOWED","Only BUY paper orders are enabled."],
+        INVALID_ORDER:["INVALID_ORDER","Invalid entry, stop or target."],
+        STOP_REQUIRED:["STOP_REQUIRED","Long paper orders require a stop below entry."],
+        INVALID_QUANTITY:["INVALID_QUANTITY","Quantity must be at least 1."],
+        MAX_POSITIONS:["MAX_POSITIONS","Maximum open positions reached."],
+        DAILY_LOSS_LIMIT:["DAILY_LOSS_LIMIT","Daily loss limit reached."],
+        POSITION_RISK:["POSITION_RISK","Requested position risk exceeds the server risk limit."],
+        REWARD_RISK:["REWARD_RISK","Reward/risk must be at least 1:1."],
+        PAPER_ACCOUNT_NOT_FOUND:["PAPER_ACCOUNT_NOT_FOUND","Paper account could not be created or found."]
+      };
+      const key=String(rpc.error.message||"").split(":")[0];
+      const [code,reason]=map[key]||["ORDER_REJECTED","Paper order was rejected by the server risk gate."];
+      await auditEvent(a.supabase,a.user.id,"PAPER_ORDER",input,"BLOCKED",reason);
+      return json(res,422,{status:"BLOCKED",code,reason},origin);
+    }
+    const order=rpc.data?.order;
+    return json(res,201,{id:order?.id,status:"SIMULATED",side:order?.side,symbol:order?.symbol,entry:order?.entry,stop:order?.stop,target:order?.target,quantity:order?.quantity,createdAt:order?.created_at},origin);
   }
   return json(res,404,{error:"NOT_FOUND"},origin);
   }catch(e){console.error(e);const message=e?.message==="REQUEST_TOO_LARGE"?"Request body is too large.":"Request could not be processed.";return json(res,e?.message==="REQUEST_TOO_LARGE"?413:400,{error:e?.message==="REQUEST_TOO_LARGE"?"REQUEST_TOO_LARGE":"BAD_REQUEST",message},String(req.headers.origin||""))}
