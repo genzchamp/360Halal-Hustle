@@ -11,12 +11,21 @@ const DEFAULT_RISK = {
   stopLoss: 2
 };
 
+let OBA_SERVER_RISK = null;
+function setServerRisk(r){
+  if(!r) return;
+  OBA_SERVER_RISK={positionRisk:Number(r.maxRiskPerTrade||0.01)*100,dailyLoss:Number(r.maxDailyLoss||0.02)*100,weeklyLoss:Number(r.maxWeeklyLoss||0.05)*100,maxPositions:Number(r.maxOpenPositions||3)};
+  renderRiskConfig();
+}
 function getRiskConfig(){
-  try { return {...DEFAULT_RISK, ...(JSON.parse(localStorage.getItem(OBA_RISK_KEY)) || {})}; }
-  catch { return {...DEFAULT_RISK}; }
+  let local={}; try{local=JSON.parse(localStorage.getItem(OBA_RISK_KEY))||{}}catch{}
+  const server=OBA_SERVER_RISK||{positionRisk:DEFAULT_RISK.positionRisk,dailyLoss:DEFAULT_RISK.dailyLoss,weeklyLoss:DEFAULT_RISK.weeklyLoss,maxPositions:DEFAULT_RISK.maxPositions};
+  return {...DEFAULT_RISK,...local,positionRisk:server.positionRisk,dailyLoss:server.dailyLoss,weeklyLoss:server.weeklyLoss,maxPositions:server.maxPositions,stopRequired:true};
 }
 function saveRiskConfig(cfg){
-  localStorage.setItem(OBA_RISK_KEY, JSON.stringify(cfg));
+  const current=getRiskConfig(),safePrefs={stopLoss:Number(cfg.stopLoss),takeProfit:Number(cfg.takeProfit)};
+  if(Object.values(safePrefs).some(v=>!Number.isFinite(v)||v<=0)) return;
+  localStorage.setItem(OBA_RISK_KEY,JSON.stringify({...current,...safePrefs,positionRisk:current.positionRisk,dailyLoss:current.dailyLoss,weeklyLoss:current.weeklyLoss,maxPositions:current.maxPositions,stopRequired:true}));
   renderRiskConfig();
 }
 function fmt(v){ return Number(v).toFixed(v % 1 ? 1 : 0) + "%"; }
@@ -54,21 +63,21 @@ function riskDecision({account=10000, entry, stop, target, positions=0, dailyLos
 function openRiskConfig(){
   const c=getRiskConfig();
   const body=`<div class="formgrid">
-    <label>Risk / position (%)<input id="rp" type="number" min="0.1" max="10" step="0.1" value="${c.positionRisk}"></label>
-    <label>Daily loss limit (%)<input id="rd" type="number" min="0.1" max="50" step="0.1" value="${c.dailyLoss}"></label>
-    <label>Weekly loss limit (%)<input id="rw" type="number" min="0.1" max="100" step="0.1" value="${c.weeklyLoss}"></label>
-    <label>Max open positions<input id="rm" type="number" min="1" max="50" step="1" value="${c.maxPositions}"></label>
+    <label>Risk / position (%)<input id="rp" type="number" min="0.1" max="10" step="0.1" value="${c.positionRisk}" readonly disabled></label>
+    <label>Daily loss limit (%)<input id="rd" type="number" min="0.1" max="50" step="0.1" value="${c.dailyLoss}" readonly disabled></label>
+    <label>Weekly loss limit (%)<input id="rw" type="number" min="0.1" max="100" step="0.1" value="${c.weeklyLoss}" readonly disabled></label>
+    <label>Max open positions<input id="rm" type="number" min="1" max="50" step="1" value="${c.maxPositions}" readonly disabled></label>
     <label>Stop-loss (%)<input id="rs" type="number" min="0.1" max="50" step="0.1" value="${c.stopLoss}"></label>
     <label>Take-profit (%)<input id="rt" type="number" min="0.1" max="100" step="0.1" value="${c.takeProfit}"></label>
   </div>
-  <label class="check"><input id="rstop" type="checkbox" ${c.stopRequired?"checked":""}> Mandatory stop-loss</label>
+  <div class="paper-note">Safety limits are server-enforced and cannot be changed from this browser. Only stop-loss and take-profit preferences are stored locally.</div>
   <div class="actions"><button class="btn primary" onclick="applyRiskConfig()">Save controls</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`;
   mt.textContent="Risk controls"; mx.innerHTML=body; m.classList.add("open");
 }
 function applyRiskConfig(){
   const n=id=>Number(document.getElementById(id).value);
-  const cfg={positionRisk:n("rp"),dailyLoss:n("rd"),weeklyLoss:n("rw"),maxPositions:Math.max(1,Math.floor(n("rm"))),stopLoss:n("rs"),takeProfit:n("rt"),stopRequired:document.getElementById("rstop").checked};
-  if(Object.values(cfg).some(v=>typeof v==="number" && (!Number.isFinite(v)||v<=0))) return;
-  saveRiskConfig(cfg); closeM(); modal("Controls saved","Your paper-trading risk rules are now stored on this device. Real execution is not connected.");
+  const cfg={stopLoss:n("rs"),takeProfit:n("rt")};
+  if(Object.values(cfg).some(v=>!Number.isFinite(v)||v<=0)) return;
+  saveRiskConfig(cfg); closeM(); modal("Controls saved","Server safety limits remain enforced. Your stop-loss and take-profit preferences were saved locally.");
 }
 document.addEventListener("DOMContentLoaded",renderRiskConfig);
