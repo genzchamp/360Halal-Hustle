@@ -68,7 +68,17 @@ function paperLog(symbol,action,status,pnl,reason){const s=paperState();paperLog
 function paperLogInto(s,symbol,action,status,pnl,reason){const d=new Date();s.journal.unshift({time:d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}),day:d.toISOString().slice(0,10),week:paperWeek(),symbol,action,status,pnl:Number(pnl)||0,reason});s.journal=s.journal.slice(0,30)}
 async function simulateMarket(){try{const r=await obaApi("/api/paper/tick",{method:"POST",body:"{}"});await syncPaperState()}catch(e){}}
 async function closePaperPosition(id){const s=paperState(),p=s.positions.find(x=>x.id===id);if(!p)return;try{await obaApi("/api/paper/positions/"+encodeURIComponent(id)+"/close",{method:"POST",body:JSON.stringify({price:p.current})});await syncPaperState();modal("Paper position closed","The position was closed and saved to your paper account.")}catch(e){modal("Close blocked",e.message)}}
-function resetPaper(){if(!confirm("Reset paper account and journal?"))return;localStorage.removeItem(OBA_PAPER_KEY);renderPaper();modal("Paper account reset","Starting balance restored to $10,000. No real funds were affected.")}
+async function resetPaper(){
+  if(!confirm("Reset your paper account? This clears your paper positions, orders and journal, restores the starting balance, and keeps an audit record. No real funds are affected."))return;
+  try{
+    const remote=await obaApi("/api/paper/reset",{method:"POST",body:"{}"});
+    localStorage.removeItem(OBA_PAPER_KEY);
+    await syncPaperState();
+    modal("Paper account reset","Paper account restored to $"+Number(remote.account?.balance||START_BALANCE).toFixed(2)+". Paper positions, orders and journal were cleared.");
+  }catch(e){
+    modal("Reset blocked",e.message||"The paper account could not be reset. Your current local state was kept.");
+  }
+}
 function renderPaper(){const s=paperState(),avail=s.balance-s.positions.reduce((a,p)=>a+p.entry*p.qty,0),eq=s.balance+s.positions.reduce((a,p)=>a+(p.current-p.entry)*p.qty,0);const bal=document.getElementById("paperBalance"),av=document.getElementById("paperAvailable"),eqe=document.getElementById("paperEquity"),cnt=document.getElementById("paperOpen");if(bal)bal.textContent="$"+s.balance.toFixed(2);if(av)av.textContent="$"+avail.toFixed(2);if(eqe)eqe.textContent="$"+eq.toFixed(2);if(cnt)cnt.textContent=String(s.positions.length);const pos=document.getElementById("paperPositions"),j=document.getElementById("paperJournal");
 if(pos)pos.innerHTML=s.positions.length?s.positions.map(p=>`<tr><td>${p.symbol}</td><td>BUY</td><td>$${p.entry.toFixed(2)}</td><td>$${p.current.toFixed(2)}</td><td>${p.qty}</td><td class="${p.current>=p.entry?"pass":"red"}">${(p.current-p.entry)*p.qty>=0?"+":"-"}$${Math.abs((p.current-p.entry)*p.qty).toFixed(2)}</td><td><button class="btn ghost" onclick="closePaperPosition('${p.id}')">Close</button></td></tr>`).join(""):'<tr><td colspan="7" class="sub">No open paper positions.</td></tr>';
 if(j)j.innerHTML=s.journal.slice(0,8).map(x=>`<tr><td>${x.time}</td><td>${x.symbol}</td><td>${x.action}</td><td>Paper</td><td>${x.reason}</td><td class="${x.status==="BLOCKED"?"red":x.status==="FILLED"||x.status==="TARGET"?"pass":""}">${x.status}</td></tr>`).join("")||'<tr><td colspan="6" class="sub">No paper events yet.</td></tr>'}
