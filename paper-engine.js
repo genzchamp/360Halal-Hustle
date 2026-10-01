@@ -5,7 +5,7 @@ const SHARIAH_WATCHLIST={AAPL:{status:"approved",label:"Approved prototype watch
 const START_BALANCE=10000;
 function paperState(){try{const s=JSON.parse(localStorage.getItem(OBA_PAPER_KEY));if(s&&Number.isFinite(s.balance)&&Array.isArray(s.positions)&&Array.isArray(s.journal))return s}catch{}return{balance:START_BALANCE,equity:START_BALANCE,positions:[],journal:[]}}
 function savePaper(s){localStorage.setItem(OBA_PAPER_KEY,JSON.stringify(s));renderPaper()}
-async function syncPaperState(){try{const r=await obaApi("/api/paper/state");const s=paperState();s.balance=Number(r.account?.balance||s.balance);s.equity=Number(r.equity||s.balance);s.positions=(r.positions||[]).filter(p=>p.status==="OPEN").map(p=>({id:p.id,symbol:p.symbol,side:p.side,entry:Number(p.entry),stop:Number(p.stop),target:Number(p.target),qty:Number(p.quantity),current:Number(p.current_price||p.entry),opened:p.opened_at,apiOrderId:p.order_id}));s.journal=(r.journal||[]).map(j=>({time:new Date(j.created_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}),day:new Date(j.created_at).toISOString().slice(0,10),symbol:j.symbol,action:j.action,status:j.action==="EXIT"?"CLOSED":j.action,pnl:Number(j.pnl||0),reason:j.notes||""}));s.risk=r.risk||null;savePaper(s);return s}catch(e){return paperState()}}
+async function syncPaperState(){try{const r=await obaApi("/api/paper/state");const s=paperState();s.balance=Number(r.account?.balance||s.balance);s.equity=Number(r.equity||s.balance);s.positions=(r.positions||[]).filter(p=>p.status==="OPEN").map(p=>({id:p.id,symbol:p.symbol,side:p.side,entry:Number(p.entry),stop:Number(p.stop),target:Number(p.target),qty:Number(p.quantity),current:Number(p.current_price||p.entry),opened:p.opened_at,apiOrderId:p.order_id}));s.journal=(r.journal||[]).map(j=>({time:new Date(j.created_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}),day:new Date(j.created_at).toISOString().slice(0,10),symbol:j.symbol,action:j.action,status:j.action==="EXIT"?"CLOSED":j.action,pnl:Number(j.pnl||0),reason:j.notes||""}));s.risk=r.risk||null;if(typeof setServerRisk==="function")setServerRisk(s.risk);savePaper(s);return s}catch(e){return paperState()}}
 function paperNum(v){const n=Number(v);return Number.isFinite(n)?n:0}
 function shariahGate(symbol){const x=SHARIAH_WATCHLIST[String(symbol).toUpperCase()];return x?{allowed:true,reason:x.label+"; this is not a fatwa or live certification."}:{allowed:false,reason:"Symbol is not on the prototype approved watchlist."}}
 function paperWeek(){const d=new Date(),first=new Date(d.getFullYear(),0,1);return Math.ceil((((d-first)/86400000)+first.getDay()+1)/7)}
@@ -16,7 +16,7 @@ function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.get
 <label>Entry price<input id="poEntry" type="number" step="0.01" value="252.84" oninput="updatePaperTicket()"></label>
 <label>Stop price<input id="poStop" type="number" step="0.01" value="250.32" oninput="updatePaperTicket()"></label>
 <label>Target price<input id="poTarget" type="number" step="0.01" value="258.38" oninput="updatePaperTicket()"></label>
-<label>Risk per trade<input id="poRisk" type="number" min="0.1" max="1" step="0.1" value="${Math.min(1,cfg.positionRisk*100).toFixed(1)}" oninput="updatePaperTicket()"></label>
+<label>Risk per trade<input id="poRisk" type="number" value="${cfg.positionRisk.toFixed(1)}" readonly disabled></label>
 <label>Quantity<input id="poQty" type="number" min="1" step="1" value="39" oninput="updatePaperRiskReadout()"></label></div>
 <div class="paper-note" id="paperRiskReadout">Calculating risk…</div>
 <div class="paper-note">PAPER ONLY · Order fills at the simulated entry price. Shariah screening runs before the deterministic risk gate.</div>
@@ -34,7 +34,7 @@ function updatePaperTicket(){
   if(status)status.innerHTML=`<span class="sub">SHARIAH SCREENING</span><strong style="color:${gate.allowed?"var(--g)":"var(--gold)"}">${gate.allowed?"✓ "+gate.reason:"⚠ "+gate.reason}</strong><p>Prototype status only; production screening needs documented methodology, current data and scholarly review.</p>`;
   if(riskInput && !riskInput.matches(":focus")) riskInput.value=(cfg.positionRisk*100).toFixed(1);
   const s=paperState();
-  const riskPct=paperNum(riskInput?.value)/100;
+  const riskPct=cfg.positionRisk/100;
   const perShare=Math.max(0,entry-stop);
   const maxRisk=s.balance*riskPct;
   const suggested=perShare>0?Math.max(1,Math.floor(maxRisk/perShare)):1;
@@ -55,7 +55,7 @@ function updatePaperRiskReadout(){
 async function submitPaperOrder(){const symbol=document.getElementById("poSymbol").value.toUpperCase(),entry=paperNum(document.getElementById("poEntry").value),stop=paperNum(document.getElementById("poStop").value),target=paperNum(document.getElementById("poTarget").value),qty=Math.floor(paperNum(document.getElementById("poQty").value)),gate=shariahGate(symbol),s=paperState(),selectedRisk=paperNum(document.getElementById("poRisk")?.value)/100;
 if(!gate.allowed){closeM();modal("Shariah gate blocked",gate.reason);paperLog(symbol,"ENTRY","BLOCKED",0,gate.reason);return}
 if(qty<1){closeM();modal("Order blocked","Quantity must be at least 1.");return}
-const rd=paperRiskInputs(),decision=riskDecision({account:s.balance,entry,stop,target,positions:rd.positions,dailyLoss:rd.dailyLoss*100,weeklyLoss:rd.weeklyLoss*100}),requestedRisk=Math.max(0,entry-stop)*qty,maxRisk=s.balance*selectedRisk;
+const rd=paperRiskInputs(),cfg=getRiskConfig(),decision=riskDecision({account:s.balance,entry,stop,target,positions:rd.positions,dailyLoss:rd.dailyLoss*100,weeklyLoss:rd.weeklyLoss*100}),requestedRisk=Math.max(0,entry-stop)*qty,maxRisk=s.balance*cfg.positionRisk/100;
 if(requestedRisk>maxRisk){closeM();modal("Risk gate blocked",`Requested risk is $${requestedRisk.toFixed(2)}; configured maximum is $${maxRisk.toFixed(2)}.`);paperLog(symbol,"ENTRY","BLOCKED",0,"Position risk exceeds limit");return}
 if(!decision.allowed){closeM();modal("Risk gate blocked",decision.reasons.join(" "));paperLog(symbol,"ENTRY","BLOCKED",0,decision.reasons.join(" "));return}
 try{
