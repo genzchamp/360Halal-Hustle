@@ -44,6 +44,32 @@ async function ensureAccount(supabase,userId){
   if(created.error)throw created.error;
   return created.data;
 }
+async function paperState(supabase,userId){
+  const account=await ensureAccount(supabase,userId);
+  const [{data:positions,error:pe},{data:orders,error:oe},{data:journal,error:je}]=await Promise.all([
+    supabase.from("paper_positions").select("*").eq("user_id",userId).order("opened_at",{ascending:false}).limit(200),
+    supabase.from("paper_orders").select("*").eq("user_id",userId).order("created_at",{ascending:false}).limit(200),
+    supabase.from("trade_journal").select("*").eq("user_id",userId).order("created_at",{ascending:false}).limit(100)
+  ]);
+  if(pe||oe||je)throw pe||oe||je;
+  const open=(positions||[]).filter(p=>p.status==="OPEN");
+  const unrealized=open.reduce((sum,p)=>sum+(Number(p.current_price||p.entry)-Number(p.entry))*Number(p.quantity),0);
+  return {account,equity:Number(account.balance)+unrealized,positions:positions||[],orders:orders||[],journal:journal||[]};
+}
+async function closePaperPosition(supabase,userId,positionId,currentPrice,reason="MANUAL"){
+  const {data:p,error:pe}=await supabase.from("paper_positions").select("*").eq("id",positionId).eq("user_id",userId).eq("status","OPEN").single();
+  if(pe||!p)throw new Error("OPEN_POSITION_NOT_FOUND");
+  const price=Number(currentPrice||p.current_price||p.entry);if(!Number.isFinite(price)||price<=0)throw new Error("INVALID_CLOSE_PRICE");
+  const pnl=(price-Number(p.entry))*Number(p.quantity);
+  const {data:updated,error:ue}=await supabase.from("paper_positions").update({status:"CLOSED",closed_at:new Date().toISOString(),current_price:price}).eq("id",positionId).eq("user_id",userId).eq("status","OPEN").select("*").single();
+  if(ue)throw ue;
+  const {data:account,error:ae}=await supabase.from("paper_accounts").select("*").eq("id",p.account_id).eq("user_id",userId).single();if(ae)throw ae;
+  const newBalance=Number(account.balance)+pnl;
+  const {error:be}=await supabase.from("paper_accounts").update({balance:newBalance}).eq("id",account.id).eq("user_id",userId);if(be)throw be;
+  await supabase.from("trade_journal").insert({user_id:userId,account_id:account.id,symbol:p.symbol,action:"EXIT",notes:reason,pnl});
+  await auditEvent(supabase,userId,"PAPER_EXIT",{symbol:p.symbol,positionId,price,pnl}, "CLOSED",reason);
+  return {position:updated,pnl,balance:newBalance};
+}
 async function auditEvent(supabase,userId,eventType,payload,status,message){
   await supabase.from("audit_events").insert({user_id:userId,event_type:eventType,symbol:payload?.symbol||null,status,message:message||null,metadata:payload||{}}).then(({error})=>{if(error)console.error("audit insert:",error.message)});
 }
@@ -55,6 +81,31 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="OPTIONS")return json(res,204,{},origin);
   if(req.method==="GET"&&req.url==="/")return json(res,200,{ok:true,service:"oba-ai-trader-api",status:"ONLINE",mode:"paper",liveExecution:false,persistence:"supabase",message:"OBA AI Trader API is running."},origin);
   if(req.method==="GET"&&(req.url==="/health"||req.url==="/api/health"))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
+  if(req.method==="GET"&&req.url==="/api/paper/state"){
+    const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
+    return json(res,200,await paperState(a.supabase,a.user.id),origin);
+  }
+  if(req.method==="POST"&&req.url==="/api/paper/tick"){
+    const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
+    const {data:positions,error}=await a.supabase.from("paper_positions").select("*").eq("user_id",a.user.id).eq("status","OPEN");
+    if(error)throw error;
+    const closed=[];
+    for(const p of positions||[]){
+      const current=Math.max(0.01,Number(p.current_price||p.entry)*(1+(Math.random()-.46)*0.012));
+      if(current<=Number(p.stop)||current>=Number(p.target)){
+        const result=await closePaperPosition(a.supabase,a.user.id,p.id,current,current>=Number(p.target)?"TARGET":"STOP");
+        closed.push({...result,price:current});
+      }else{
+        const {error:ue}=await a.supabase.from("paper_positions").update({current_price:current}).eq("id",p.id).eq("user_id",a.user.id).eq("status","OPEN");if(ue)throw ue;
+      }
+    }
+    return json(res,200,{state:await paperState(a.supabase,a.user.id),closed},origin);
+  }
+  if(req.method==="POST"&&req.url.startsWith("/api/paper/positions/")&&req.url.endsWith("/close")){
+    const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
+    const id=req.url.split("/")[4];const input=await body(req);const result=await closePaperPosition(a.supabase,a.user.id,id,input.price,"MANUAL");
+    return json(res,200,result,origin);
+  }
   if(req.method==="POST"&&req.url==="/api/risk/check"){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
     const input=await body(req),decision=riskCheck(input);await auditEvent(a.supabase,a.user.id,"RISK_CHECK",input,decision.allowed?"ALLOWED":"BLOCKED",decision.reason);return json(res,decision.allowed?200:422,decision,origin);
