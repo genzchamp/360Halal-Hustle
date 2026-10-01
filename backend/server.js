@@ -57,18 +57,20 @@ async function paperState(supabase,userId){
   return {account,equity:Number(account.balance)+unrealized,positions:positions||[],orders:orders||[],journal:journal||[]};
 }
 async function closePaperPosition(supabase,userId,positionId,currentPrice,reason="MANUAL"){
-  const {data:p,error:pe}=await supabase.from("paper_positions").select("*").eq("id",positionId).eq("user_id",userId).eq("status","OPEN").single();
-  if(pe||!p)throw new Error("OPEN_POSITION_NOT_FOUND");
-  const price=Number(currentPrice||p.current_price||p.entry);if(!Number.isFinite(price)||price<=0)throw new Error("INVALID_CLOSE_PRICE");
-  const pnl=(price-Number(p.entry))*Number(p.quantity);
-  const {data:updated,error:ue}=await supabase.from("paper_positions").update({status:"CLOSED",closed_at:new Date().toISOString(),current_price:price}).eq("id",positionId).eq("user_id",userId).eq("status","OPEN").select("*").single();
-  if(ue)throw ue;
-  const {data:account,error:ae}=await supabase.from("paper_accounts").select("*").eq("id",p.account_id).eq("user_id",userId).single();if(ae)throw ae;
-  const newBalance=Number(account.balance)+pnl;
-  const {error:be}=await supabase.from("paper_accounts").update({balance:newBalance}).eq("id",account.id).eq("user_id",userId);if(be)throw be;
-  await supabase.from("trade_journal").insert({user_id:userId,account_id:account.id,symbol:p.symbol,action:"EXIT",notes:reason,pnl});
-  await auditEvent(supabase,userId,"PAPER_EXIT",{symbol:p.symbol,positionId,price,pnl}, "CLOSED",reason);
-  return {position:updated,pnl,balance:newBalance};
+  const price=Number(currentPrice);
+  if(!Number.isFinite(price)||price<=0)throw new Error("INVALID_CLOSE_PRICE");
+  const {data,error}=await supabase.rpc("close_paper_position_atomic",{
+    p_position_id:positionId,
+    p_current_price:price,
+    p_reason:reason
+  });
+  if(error){
+    if(error.message==="OPEN_POSITION_NOT_FOUND")throw new Error("OPEN_POSITION_NOT_FOUND");
+    if(error.message==="PAPER_ACCOUNT_NOT_FOUND")throw new Error("PAPER_ACCOUNT_NOT_FOUND");
+    if(error.message==="INVALID_CLOSE_PRICE")throw new Error("INVALID_CLOSE_PRICE");
+    throw error;
+  }
+  return data;
 }
 async function auditEvent(supabase,userId,eventType,payload,status,message){
   await supabase.from("audit_events").insert({user_id:userId,event_type:eventType,symbol:payload?.symbol||null,status,message:message||null,metadata:payload||{}}).then(({error})=>{if(error)console.error("audit insert:",error.message)});
