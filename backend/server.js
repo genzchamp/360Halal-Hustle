@@ -121,7 +121,6 @@ const server=http.createServer(async(req,res)=>{
       await auditEvent(a.supabase,a.user.id,"PAPER_ORDER",input,"BLOCKED","Symbol is not on the prototype approved watchlist.");
       return json(res,422,{status:"BLOCKED",code:"SHARIAH_GATE",reason:"Symbol is not on the prototype approved watchlist."},origin);
     }
-    const {data,resultError}=await Promise.resolve({data:null,resultError:null});
     const rpc=await a.supabase.rpc("create_paper_order_atomic",{
       p_symbol:symbol,
       p_entry:Number(input.entry),
