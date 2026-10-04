@@ -148,16 +148,24 @@ const server=http.createServer(async(req,res)=>{
       const map={
         AUTH_REQUIRED:["AUTH_REQUIRED","Authentication is required."],
         SHARIAH_GATE:["SHARIAH_GATE","Symbol is not on the approved watchlist."],
+        SHARIAH_WATCHLIST_BLOCK:["SHARIAH_GATE","Symbol is not on the approved watchlist."],
         SIDE_NOT_ALLOWED:["SIDE_NOT_ALLOWED","Only BUY paper orders are enabled."],
         INVALID_ORDER:["INVALID_ORDER","Invalid entry, stop or target."],
+        INVALID_PRICE:["INVALID_ORDER","Invalid entry, stop or target."],
         STOP_REQUIRED:["STOP_REQUIRED","Long paper orders require a stop below entry."],
+        STOP_MUST_BE_BELOW_ENTRY:["STOP_REQUIRED","Long paper orders require a stop below entry."],
         INVALID_QUANTITY:["INVALID_QUANTITY","Quantity must be at least 1."],
         INVALID_IDEMPOTENCY_KEY:["INVALID_IDEMPOTENCY_KEY","Invalid order request key."],
         MAX_POSITIONS:["MAX_POSITIONS","Maximum open positions reached."],
+        MAX_OPEN_POSITIONS:["MAX_POSITIONS","Maximum open positions reached."],
         DAILY_LOSS_LIMIT:["DAILY_LOSS_LIMIT","Daily loss limit reached."],
         WEEKLY_LOSS_LIMIT:["WEEKLY_LOSS_LIMIT","Weekly loss limit reached."],
         POSITION_RISK:["POSITION_RISK","Requested position risk exceeds the server risk limit."],
+        MAX_RISK_PER_TRADE:["POSITION_RISK","Requested position risk exceeds the server risk limit."],
         REWARD_RISK:["REWARD_RISK","Reward/risk must be at least 1:1."],
+        REWARD_RISK_TOO_LOW:["REWARD_RISK","Reward/risk must be at least 1:1."],
+        INVALID_REWARD_RISK:["REWARD_RISK","Reward/risk must be at least 1:1."],
+        UNAUTHENTICATED:["AUTH_REQUIRED","Authentication is required."],
         PAPER_ACCOUNT_NOT_FOUND:["PAPER_ACCOUNT_NOT_FOUND","Paper account could not be created or found."]
       };
       const key=String(rpc.error.message||"").split(":")[0];
