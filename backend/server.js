@@ -141,7 +141,8 @@ const server=http.createServer(async(req,res)=>{
       p_stop:Number(input.stop),
       p_target:Number(input.target),
       p_quantity:Number(input.quantity),
-      p_side:"BUY"
+      p_side:"BUY",
+      p_idempotency_key:String(input.idempotencyKey||"")||null
     });
     if(rpc.error){
       const map={
@@ -151,6 +152,7 @@ const server=http.createServer(async(req,res)=>{
         INVALID_ORDER:["INVALID_ORDER","Invalid entry, stop or target."],
         STOP_REQUIRED:["STOP_REQUIRED","Long paper orders require a stop below entry."],
         INVALID_QUANTITY:["INVALID_QUANTITY","Quantity must be at least 1."],
+        INVALID_IDEMPOTENCY_KEY:["INVALID_IDEMPOTENCY_KEY","Invalid order request key."],
         MAX_POSITIONS:["MAX_POSITIONS","Maximum open positions reached."],
         DAILY_LOSS_LIMIT:["DAILY_LOSS_LIMIT","Daily loss limit reached."],
         WEEKLY_LOSS_LIMIT:["WEEKLY_LOSS_LIMIT","Weekly loss limit reached."],
