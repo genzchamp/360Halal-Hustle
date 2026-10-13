@@ -19,7 +19,7 @@ function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.get
 <label>Risk per trade<input id="poRisk" type="number" value="${cfg.positionRisk.toFixed(1)}" readonly disabled></label>
 <label>Quantity<input id="poQty" type="number" min="1" step="1" value="39" oninput="updatePaperRiskReadout()"></label></div>
 <div class="paper-note" id="paperRiskReadout">Calculating risk…</div>
-<div class="paper-note">PAPER ONLY · Order fills at the simulated entry price. Shariah screening runs before the deterministic risk gate.</div>
+<div class="paper-note">PAPER ONLY · Prices are synthetic simulations, not live market quotes. Orders fill at the entered simulated price; automatic stop/target checks use simulated prices. Shariah screening is a prototype watchlist, not a fatwa or certification.</div>
 <div class="actions"><button id="paperSubmitBtn" class="btn primary" onclick="submitPaperOrder()">Validate & simulate fill</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`;
 mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open");updatePaperTicket()}
 function updatePaperTicket(){
