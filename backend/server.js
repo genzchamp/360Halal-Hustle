@@ -87,7 +87,7 @@ const server=http.createServer(async(req,res)=>{
   if(rateLimited(req))return json(res,429,{error:"RATE_LIMITED",message:"Too many requests. Try again shortly."},origin);
   if(req.method==="OPTIONS")return json(res,204,{},origin);
   if(req.method==="GET"&&req.url==="/")return json(res,200,{ok:true,service:"oba-ai-trader-api",status:"ONLINE",mode:"paper",liveExecution:false,persistence:"supabase",message:"OBA AI Trader API is running."},origin);
-  if(req.method==="GET"&&(req.url==="/health"||req.url==="/api/health"))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
+  if(req.method==="GET"&&(req.url==="/health"||req.url==="/api/health"))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,priceSource:"synthetic-simulation",persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
   if(req.method==="GET"&&req.url==="/api/paper/state"){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
     return json(res,200,await paperState(a.supabase,a.user.id),origin);
@@ -113,7 +113,7 @@ const server=http.createServer(async(req,res)=>{
       throw error;
     }
     const closed=Array.isArray(tickResult)?tickResult:[];
-    return json(res,200,{state:await paperState(a.supabase,a.user.id),closed},origin);
+    return json(res,200,{state:await paperState(a.supabase,a.user.id),closed,priceSource:"synthetic-simulation"},origin);
   }
   if(req.method==="POST"&&req.url.startsWith("/api/paper/positions/")&&req.url.endsWith("/close")){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
