@@ -1,0 +1,25 @@
+name: Validate OBA AI Trader JavaScript
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check backend syntax
+        run: node --check backend/server.js
+      - name: Check trading frontend syntax
+        run: |
+          node --check api-client.js
+          node --check paper-engine.js
+          node --check risk-engine.js
+          node --check historical-backtest.js
