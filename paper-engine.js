@@ -75,7 +75,7 @@ if(!decision.allowed){if(submitBtn)submitBtn.disabled=false;closeM();modal("Risk
 try{
   const remote=await obaApi("/api/paper/orders",{method:"POST",body:JSON.stringify({account:s.balance,symbol,entry,stop,target,quantity:qty,openPositions:rd.positions,dailyLoss:rd.dailyLoss,idempotencyKey})});
   clearPendingPaperOrder();
-  const position={id:remote.id||Date.now().toString(),symbol,side:"BUY",entry,stop,target,qty:Math.floor(Number(remote.quantity)||qty),current:entry,opened:new Date().toISOString(),apiOrderId:remote.id};
+  const position={id:remote.positionId||remote.id||Date.now().toString(),symbol,side:"BUY",entry,stop,target,qty:Math.floor(Number(remote.quantity)||qty),current:entry,opened:new Date().toISOString(),apiOrderId:remote.id};
   s.positions.push(position);paperLogInto(s,symbol,"ENTRY","FILLED",0,"Render API accepted; Shariah gate passed; server risk gate passed");savePaper(s);closeM();modal("Paper fill confirmed",`BUY ${position.qty} ${symbol} at $${entry.toFixed(2)}. Render accepted the paper order. No real order was sent.`)
 }catch(err){if(submitBtn)submitBtn.disabled=false;closeM();modal("Server risk gate blocked",err.message);paperLog(symbol,"ENTRY","BLOCKED",0,"Render API: "+err.message)}
 }
