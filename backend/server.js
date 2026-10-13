@@ -174,7 +174,7 @@ const server=http.createServer(async(req,res)=>{
       return json(res,422,{status:"BLOCKED",code,reason},origin);
     }
     const order=rpc.data?.order;
-    return json(res,201,{id:order?.id,status:"SIMULATED",side:order?.side,symbol:order?.symbol,entry:order?.entry,stop:order?.stop,target:order?.target,quantity:order?.quantity,createdAt:order?.created_at},origin);
+    return json(res,201,{id:order?.id,positionId:rpc.data?.position?.id,status:"SIMULATED",side:order?.side,symbol:order?.symbol,entry:order?.entry,stop:order?.stop,target:order?.target,quantity:order?.quantity,createdAt:order?.created_at},origin);
   }
   return json(res,404,{error:"NOT_FOUND"},origin);
   }catch(e){console.error(e);const message=e?.message==="REQUEST_TOO_LARGE"?"Request body is too large.":"Request could not be processed.";return json(res,e?.message==="REQUEST_TOO_LARGE"?413:400,{error:e?.message==="REQUEST_TOO_LARGE"?"REQUEST_TOO_LARGE":"BAD_REQUEST",message},String(req.headers.origin||""))}
