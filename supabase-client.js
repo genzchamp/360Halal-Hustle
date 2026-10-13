@@ -60,7 +60,7 @@ async function obaSaveNewPassword(){
 async function obaSignOut(){
   const {error}=await supabaseClient.auth.signOut({scope:"local"});
   if(error)return obaAuthMessage(error.message,false,"obaProfileMsg");
-  obaProfileModal(false);renderOBAAuth();obaAuthOpen();
+  obaProfileModal(false);renderOBAAuth();
 }
 async function getSupabaseSession(){const {data}=await supabaseClient.auth.getSession();return data.session}
 function obaAuthOpen(){obaProfileModal(false);obaAuthModal(true);setTimeout(()=>document.getElementById("obaAuthEmail")?.focus(),50)}
