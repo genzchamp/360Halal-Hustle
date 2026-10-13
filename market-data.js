@@ -28,6 +28,7 @@ function renderMarketQuote(q){
   set("marketMeta",(q.exchange||"US Equity")+" · "+(q.marketState||"Market status unavailable"));
   set("marketState",q.marketState||"Unknown");
   set("marketTrend",Number(change)>0.15?"Positive session":Number(change)<-0.15?"Negative session":"Mixed / flat");
+  set("marketSummary",Number.isFinite(Number(change))?"AAPL is "+(Number(change)>0.15?"higher":Number(change)<-0.15?"lower":"little changed")+" versus the provider-reported previous close ("+(Number(change)>=0?"+":"")+Number(change).toFixed(2)+"%). This is descriptive market context, not an AI prediction or a recommendation to trade.":"A quote was received, but the provider did not return a usable previous-close comparison. No directional conclusion is available.");
   set("marketSource","Source: "+(q.source||"third-party provider"));
   const time=q.marketTime?new Date(q.marketTime):null;
   set("marketUpdated",time&&!Number.isNaN(time.getTime())?"Provider time: "+time.toLocaleString():"Provider timestamp unavailable");
