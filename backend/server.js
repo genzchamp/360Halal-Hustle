@@ -8,6 +8,7 @@ const MAX_WEEKLY_LOSS=Number(process.env.MAX_WEEKLY_LOSS||0.05);
 const MAX_OPEN_POSITIONS=Number(process.env.MAX_OPEN_POSITIONS||3);
 const SUPABASE_URL=process.env.SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY=process.env.SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_SERVICE_ROLE_KEY=process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SHARIAH_WATCHLIST=new Set(["AAPL","MSFT"]);
 const ALLOWED_ORIGINS=new Set([
   "https://genzchamp.github.io",
@@ -80,6 +81,26 @@ async function closePaperPosition(supabase,userId,positionId,currentPrice,reason
 async function auditEvent(supabase,userId,eventType,payload,status,message){
   await supabase.from("audit_events").insert({user_id:userId,event_type:eventType,symbol:payload?.symbol||null,status,message:message||null,metadata:payload||{}}).then(({error})=>{if(error)console.error("audit insert:",error.message)});
 }
+
+const MARKET_SYMBOLS=new Set(["AAPL","MSFT","TSLA","NVDA"]);
+const marketQuoteCache=new Map();
+async function getMarketQuote(symbol){
+  const key=String(symbol||"").toUpperCase();
+  if(!MARKET_SYMBOLS.has(key))throw new Error("UNSUPPORTED_SYMBOL");
+  const cached=marketQuoteCache.get(key);
+  if(cached&&Date.now()-cached.cachedAt<15000)return cached.quote;
+  const response=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/"+key+"?range=1d&interval=1m",{headers:{"accept":"application/json","user-agent":"OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(8000)});
+  if(!response.ok)throw new Error("MARKET_PROVIDER_UNAVAILABLE");
+  const payload=await response.json(),item=payload?.chart?.result?.[0],meta=item?.meta;
+  if(!meta)throw new Error("MARKET_DATA_UNAVAILABLE");
+  const price=Number(meta.regularMarketPrice);
+  if(!Number.isFinite(price)||price<=0)throw new Error("MARKET_PRICE_UNAVAILABLE");
+  const previous=Number(meta.chartPreviousClose||meta.previousClose||0),series=item.indicators?.quote?.[0]||[];
+  const bars=(item.timestamp||[]).map((time,i)=>({time:time*1000,close:series.close?.[i]})).filter(b=>Number.isFinite(Number(b.close))&&Number(b.close)>0).slice(-100);
+  const quote={symbol:key,price,currency:meta.currency||"USD",exchange:meta.fullExchangeName||meta.exchangeName||"Unknown",marketState:meta.marketState||"UNKNOWN",marketTime:meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toISOString():null,previousClose:previous||null,change:previous?price-previous:null,changePercent:previous?(price-previous)/previous*100:null,bars,source:"Yahoo Finance chart data",fetchedAt:new Date().toISOString()};
+  marketQuoteCache.set(key,{cachedAt:Date.now(),quote});
+  return quote;
+}
 const server=http.createServer(async(req,res)=>{
  try{
   const origin=String(req.headers.origin||"");
@@ -91,22 +112,24 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="GET"&&req.url.startsWith("/api/market/quotes")){
     const url=new URL(req.url,"http://localhost");
     const symbols=String(url.searchParams.get("symbols")||"AAPL,MSFT").split(",").map(x=>x.trim().toUpperCase());
-    const allowed=new Set(["AAPL","MSFT","TSLA","NVDA"]);
-    if(!symbols.length||symbols.length>4||symbols.some(x=>!allowed.has(x)))return json(res,400,{error:"UNSUPPORTED_SYMBOL",message:"Supported symbols: AAPL, MSFT, TSLA, NVDA."},origin);
-    const quotes=await Promise.all(symbols.map(async symbol=>{
-      try{
-        const response=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/"+symbol+"?range=1d&interval=1m",{headers:{"accept":"application/json","user-agent":"OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(8000)});
-        if(!response.ok)throw new Error("provider unavailable");
-        const payload=await response.json(),item=payload?.chart?.result?.[0],meta=item?.meta;
-        if(!meta)throw new Error("quote unavailable");
-        const price=Number(meta.regularMarketPrice);
-        if(!Number.isFinite(price)||price<=0)throw new Error("invalid quote");
-        const prev=Number(meta.chartPreviousClose||meta.previousClose||0),series=item.indicators?.quote?.[0]||[];
-        const bars=(item.timestamp||[]).map((time,i)=>({time:time*1000,close:series.close?.[i]})).filter(b=>Number.isFinite(Number(b.close))&&Number(b.close)>0).slice(-100);
-        return {symbol,price,currency:meta.currency||"USD",exchange:meta.fullExchangeName||meta.exchangeName||"Unknown",marketState:meta.marketState||"UNKNOWN",marketTime:meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toISOString():null,previousClose:prev||null,change:prev?price-prev:null,changePercent:prev?(price-prev)/prev*100:null,bars,source:"Yahoo Finance chart data",fetchedAt:new Date().toISOString()};
-      }catch{return {symbol,error:"MARKET_DATA_UNAVAILABLE",message:"No quote returned. No simulated fallback was used."}}
-    }));
+    if(!symbols.length||symbols.length>4||symbols.some(x=>!MARKET_SYMBOLS.has(x)))return json(res,400,{error:"UNSUPPORTED_SYMBOL",message:"Supported symbols: AAPL, MSFT, TSLA, NVDA."},origin);
+    const quotes=await Promise.all(symbols.map(async symbol=>{try{return await getMarketQuote(symbol)}catch{return{symbol,error:"MARKET_DATA_UNAVAILABLE",message:"No quote returned. No simulated fallback was used."}}}));
     return json(res,quotes.some(q=>Number.isFinite(q.price))?200:503,{quotes,notice:"Third-party data may be delayed. Paper mode only; no broker orders are sent.",fetchedAt:new Date().toISOString()},origin);
+  }
+  if(req.method==="POST"&&req.url==="/api/paper/refresh"){
+    const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
+    const {data:openPositions,error:positionError}=await a.supabase.from("paper_positions").select("symbol").eq("user_id",a.user.id).eq("status","OPEN");
+    if(positionError)throw positionError;
+    const symbols=[...new Set((openPositions||[]).map(p=>String(p.symbol||"").toUpperCase()).filter(s=>MARKET_SYMBOLS.has(s)))];
+    if(!symbols.length)return json(res,200,{state:await paperState(a.supabase,a.user.id),quotes:[],result:{updatedCount:0,updated:[],closed:[]},priceSource:"third-party-market-data"},origin);
+    if(!SUPABASE_SERVICE_ROLE_KEY)return json(res,503,{error:"MARKET_MARKING_NOT_CONFIGURED",message:"Real quote marking needs the server-only Supabase service role secret configured in Render. No simulated price update was used."},origin);
+    const quoteResults=await Promise.all(symbols.map(async symbol=>{try{return await getMarketQuote(symbol)}catch{return{symbol,error:"MARKET_DATA_UNAVAILABLE"}}}));
+    const quoteMap=Object.fromEntries(quoteResults.filter(q=>Number.isFinite(q.price)).map(q=>[q.symbol,q.price]));
+    if(!Object.keys(quoteMap).length)return json(res,503,{error:"MARKET_DATA_UNAVAILABLE",message:"No current provider quotes were returned. Positions were not changed."},origin);
+    const admin=createClient(SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,{auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false}});
+    const {data:result,error}=await admin.rpc("mark_paper_positions_from_quotes_service",{p_user_id:a.user.id,p_quotes:quoteMap});
+    if(error){console.error("provider quote marking failed:",error.message);return json(res,503,{error:"MARKET_MARKING_FAILED",message:"Provider prices were fetched but the saved paper positions could not be updated."},origin);}
+    return json(res,200,{state:await paperState(a.supabase,a.user.id),quotes:quoteResults,result,priceSource:"third-party-market-data",notice:"Paper exits are checked when this app polls quotes; this is not an exchange-side stop order."},origin);
   }
   if(req.method==="GET"&&req.url==="/api/paper/state"){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
