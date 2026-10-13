@@ -88,6 +88,25 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="OPTIONS")return json(res,204,{},origin);
   if(req.method==="GET"&&req.url==="/")return json(res,200,{ok:true,service:"oba-ai-trader-api",status:"ONLINE",mode:"paper",liveExecution:false,persistence:"supabase",message:"OBA AI Trader API is running."},origin);
   if(req.method==="GET"&&(req.url==="/health"||req.url==="/api/health"))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,priceSource:"synthetic-simulation",persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
+  if(req.method==="GET"&&req.url.startsWith("/api/market/quotes")){
+    const url=new URL(req.url,"http://localhost");
+    const symbols=String(url.searchParams.get("symbols")||"AAPL,MSFT").split(",").map(x=>x.trim().toUpperCase());
+    const allowed=new Set(["AAPL","MSFT","TSLA","NVDA"]);
+    if(!symbols.length||symbols.length>4||symbols.some(x=>!allowed.has(x)))return json(res,400,{error:"UNSUPPORTED_SYMBOL",message:"Supported symbols: AAPL, MSFT, TSLA, NVDA."},origin);
+    const quotes=await Promise.all(symbols.map(async symbol=>{
+      try{
+        const response=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/"+symbol+"?range=1d&interval=1m",{headers:{"accept":"application/json","user-agent":"OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(8000)});
+        if(!response.ok)throw new Error("provider unavailable");
+        const payload=await response.json(),item=payload?.chart?.result?.[0],meta=item?.meta;
+        if(!meta)throw new Error("quote unavailable");
+        const price=Number(meta.regularMarketPrice);
+        if(!Number.isFinite(price)||price<=0)throw new Error("invalid quote");
+        const prev=Number(meta.chartPreviousClose||meta.previousClose||0);
+        return {symbol,price,currency:meta.currency||"USD",exchange:meta.fullExchangeName||meta.exchangeName||"Unknown",marketState:meta.marketState||"UNKNOWN",marketTime:meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toISOString():null,previousClose:prev||null,change:prev?price-prev:null,changePercent:prev?(price-prev)/prev*100:null,source:"Yahoo Finance chart data",fetchedAt:new Date().toISOString()};
+      }catch{return {symbol,error:"MARKET_DATA_UNAVAILABLE",message:"No quote returned. No simulated fallback was used."}}
+    }));
+    return json(res,quotes.some(q=>Number.isFinite(q.price))?200:503,{quotes,notice:"Third-party data may be delayed. Paper mode only; no broker orders are sent.",fetchedAt:new Date().toISOString()},origin);
+  }
   if(req.method==="GET"&&req.url==="/api/paper/state"){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
     return json(res,200,await paperState(a.supabase,a.user.id),origin);
