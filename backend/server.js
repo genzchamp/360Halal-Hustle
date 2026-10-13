@@ -101,8 +101,9 @@ const server=http.createServer(async(req,res)=>{
         if(!meta)throw new Error("quote unavailable");
         const price=Number(meta.regularMarketPrice);
         if(!Number.isFinite(price)||price<=0)throw new Error("invalid quote");
-        const prev=Number(meta.chartPreviousClose||meta.previousClose||0);
-        return {symbol,price,currency:meta.currency||"USD",exchange:meta.fullExchangeName||meta.exchangeName||"Unknown",marketState:meta.marketState||"UNKNOWN",marketTime:meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toISOString():null,previousClose:prev||null,change:prev?price-prev:null,changePercent:prev?(price-prev)/prev*100:null,source:"Yahoo Finance chart data",fetchedAt:new Date().toISOString()};
+        const prev=Number(meta.chartPreviousClose||meta.previousClose||0),series=item.indicators?.quote?.[0]||[];
+        const bars=(item.timestamp||[]).map((time,i)=>({time:time*1000,close:series.close?.[i]})).filter(b=>Number.isFinite(Number(b.close))&&Number(b.close)>0).slice(-100);
+        return {symbol,price,currency:meta.currency||"USD",exchange:meta.fullExchangeName||meta.exchangeName||"Unknown",marketState:meta.marketState||"UNKNOWN",marketTime:meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toISOString():null,previousClose:prev||null,change:prev?price-prev:null,changePercent:prev?(price-prev)/prev*100:null,bars,source:"Yahoo Finance chart data",fetchedAt:new Date().toISOString()};
       }catch{return {symbol,error:"MARKET_DATA_UNAVAILABLE",message:"No quote returned. No simulated fallback was used."}}
     }));
     return json(res,quotes.some(q=>Number.isFinite(q.price))?200:503,{quotes,notice:"Third-party data may be delayed. Paper mode only; no broker orders are sent.",fetchedAt:new Date().toISOString()},origin);
