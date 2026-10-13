@@ -22,8 +22,10 @@ function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.get
 <div class="paper-note">PAPER ONLY · Prices are synthetic simulations, not live market quotes. Orders fill at the entered simulated price; automatic stop/target checks use simulated prices. Shariah screening is a prototype watchlist, not a fatwa or certification.</div>
 <div class="actions"><button id="paperSubmitBtn" class="btn primary" onclick="submitPaperOrder()">Validate & simulate fill</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`;
 mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open");updatePaperTicket()}
+let OBA_LAST_TICKET_SYMBOL="";
 function updatePaperTicket(){
   const symbol=document.getElementById("poSymbol")?.value?.toUpperCase();
+  if(symbol&&symbol!==OBA_LAST_TICKET_SYMBOL){OBA_LAST_TICKET_SYMBOL=symbol;const quote=window.OBA_MARKET_QUOTES?.[symbol],price=Number(quote?.price);if(Number.isFinite(price)&&price>0){const entryEl=document.getElementById("poEntry"),stopEl=document.getElementById("poStop"),targetEl=document.getElementById("poTarget");if(entryEl&&!entryEl.matches(":focus"))entryEl.value=price.toFixed(2);if(stopEl&&!stopEl.matches(":focus"))stopEl.value=(price*0.99).toFixed(2);if(targetEl&&!targetEl.matches(":focus"))targetEl.value=(price*1.02).toFixed(2);}}
   const entry=paperNum(document.getElementById("poEntry")?.value);
   const stop=paperNum(document.getElementById("poStop")?.value);
   const riskInput=document.getElementById("poRisk");
