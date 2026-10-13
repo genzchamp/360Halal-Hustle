@@ -108,7 +108,7 @@ const server=http.createServer(async(req,res)=>{
   if(rateLimited(req))return json(res,429,{error:"RATE_LIMITED",message:"Too many requests. Try again shortly."},origin);
   if(req.method==="OPTIONS")return json(res,204,{},origin);
   if(req.method==="GET"&&req.url==="/")return json(res,200,{ok:true,service:"oba-ai-trader-api",status:"ONLINE",mode:"paper",liveExecution:false,persistence:"supabase",message:"OBA AI Trader API is running."},origin);
-  if(req.method==="GET"&&(req.url==="/health"||req.url==="/api/health"))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,priceSource:"synthetic-simulation",persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
+  if(req.method==="GET"&&(req.url==="/health"||req.url==="/api/health"))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,marketDataSource:"Yahoo Finance chart data",paperPositionMarking:SUPABASE_SERVICE_ROLE_KEY?"provider-quotes-configured":"requires-server-service-role-key",persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
   if(req.method==="GET"&&req.url.startsWith("/api/market/quotes")){
     const url=new URL(req.url,"http://localhost");
     const symbols=String(url.searchParams.get("symbols")||"AAPL,MSFT").split(",").map(x=>x.trim().toUpperCase());
@@ -148,16 +148,7 @@ const server=http.createServer(async(req,res)=>{
     }
     return json(res,200,{status:"RESET",...data},origin);
   }
-  if(req.method==="POST"&&req.url==="/api/paper/tick"){
-    const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
-    const {data:tickResult,error}=await a.supabase.rpc("tick_paper_positions_atomic");
-    if(error){
-      if(error.message==="AUTH_REQUIRED")return json(res,401,{error:"AUTH_REQUIRED"},origin);
-      throw error;
-    }
-    const closed=Array.isArray(tickResult)?tickResult:[];
-    return json(res,200,{state:await paperState(a.supabase,a.user.id),closed,priceSource:"synthetic-simulation"},origin);
-  }
+  if(req.method==="POST"&&req.url==="/api/paper/tick")return json(res,410,{error:"SYNTHETIC_TICK_DISABLED",message:"Synthetic position ticks are disabled. Use provider quote refresh for paper positions."},origin);
   if(req.method==="POST"&&req.url.startsWith("/api/paper/positions/")&&req.url.endsWith("/close")){
     const a=await auth(req);if(a.error)return json(res,401,{error:a.error},origin);
     const id=req.url.split("/")[4];const input=await body(req);const result=await closePaperPosition(a.supabase,a.user.id,id,input.price,"MANUAL");
