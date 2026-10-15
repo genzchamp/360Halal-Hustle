@@ -139,8 +139,8 @@ const server=http.createServer(async(req,res)=>{
     if(!symbols.length)return json(res,200,{state:await paperState(a.supabase,a.user.id),quotes:[],result:{updatedCount:0,updated:[],closed:[]},priceSource:"third-party-market-data"},origin);
     if(!SUPABASE_SERVICE_ROLE_KEY)return json(res,503,{error:"MARKET_MARKING_NOT_CONFIGURED",message:"Real quote marking needs the server-only Supabase service role secret configured in Render. No simulated price update was used."},origin);
     const quoteResults=await Promise.all(symbols.map(async symbol=>{try{return await getMarketQuote(symbol)}catch{return{symbol,error:"MARKET_DATA_UNAVAILABLE"}}}));
-    const quoteMap=Object.fromEntries(quoteResults.filter(q=>Number.isFinite(q.price)).map(q=>[q.symbol,q.price]));
-    if(!Object.keys(quoteMap).length)return json(res,503,{error:"MARKET_DATA_UNAVAILABLE",message:"No current provider quotes were returned. Positions were not changed."},origin);
+    const quoteMap=Object.fromEntries(quoteResults.filter(q=>Number.isFinite(q.price)&&q.dataQuality!=="daily-close").map(q=>[q.symbol,q.price]));
+    if(!Object.keys(quoteMap).length)return json(res,503,{error:"CURRENT_MARKET_QUOTES_UNAVAILABLE",message:"No current intraday provider quotes were returned. Daily historical closes may be displayed for context, but they will not be used to mark positions or trigger paper exits."},origin);
     const admin=createClient(SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,{auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false}});
     const {data:result,error}=await admin.rpc("mark_paper_positions_from_quotes_service",{p_user_id:a.user.id,p_quotes:quoteMap});
     if(error){console.error("provider quote marking failed:",error.message);return json(res,503,{error:"MARKET_MARKING_FAILED",message:"Provider prices were fetched but the saved paper positions could not be updated."},origin);}
