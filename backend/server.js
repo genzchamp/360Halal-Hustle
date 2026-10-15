@@ -104,17 +104,33 @@ async function getMarketQuote(symbol){
   if(!MARKET_SYMBOLS.has(key))throw new Error("UNSUPPORTED_SYMBOL");
   const cached=marketQuoteCache.get(key);
   if(cached&&Date.now()-cached.cachedAt<15000)return cached.quote;
-  let response;try{response=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/"+key+"?range=1d&interval=1m",{headers:{"accept":"application/json","user-agent":"OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(6000)});}catch(e){return getStooqQuote(key)}
-  if(!response.ok)return getStooqQuote(key);
-  const payload=await response.json(),item=payload?.chart?.result?.[0],meta=item?.meta;
-  if(!meta)return getStooqQuote(key);
-  const price=Number(meta.regularMarketPrice);
-  if(!Number.isFinite(price)||price<=0)return getStooqQuote(key);
-  const previous=Number(meta.chartPreviousClose||meta.previousClose||0),series=item.indicators?.quote?.[0]||[];
-  const bars=(item.timestamp||[]).map((time,i)=>({time:time*1000,close:series.close?.[i]})).filter(b=>Number.isFinite(Number(b.close))&&Number(b.close)>0).slice(-100);
-  const quote={symbol:key,price,currency:meta.currency||"USD",exchange:meta.fullExchangeName||meta.exchangeName||"Unknown",marketState:meta.marketState||"UNKNOWN",marketTime:meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toISOString():null,previousClose:previous||null,change:previous?price-previous:null,changePercent:previous?(price-previous)/previous*100:null,bars,source:"Yahoo Finance chart data",fetchedAt:new Date().toISOString()};
-  marketQuoteCache.set(key,{cachedAt:Date.now(),quote});
-  return quote;
+  let yahooFailure="YAHOO_UNKNOWN";
+  try{
+    const response=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/"+key+"?range=1d&interval=1m",{headers:{"accept":"application/json","user-agent":"Mozilla/5.0 OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(6000)});
+    if(!response.ok)yahooFailure="YAHOO_HTTP_"+response.status;
+    else {
+      const payload=await response.json(),item=payload?.chart?.result?.[0],meta=item?.meta;
+      if(!meta)yahooFailure=payload?.chart?.error?.code?"YAHOO_"+String(payload.chart.error.code).replace(/[^A-Za-z0-9_]/g,"").slice(0,40):"YAHOO_MISSING_METADATA";
+      else {
+        const price=Number(meta.regularMarketPrice);
+        if(!Number.isFinite(price)||price<=0)yahooFailure="YAHOO_INVALID_PRICE";
+        else {
+          const previous=Number(meta.chartPreviousClose||meta.previousClose||0),series=item.indicators?.quote?.[0]||[];
+          const bars=(item.timestamp||[]).map((time,i)=>({time:time*1000,close:series.close?.[i]})).filter(b=>Number.isFinite(Number(b.close))&&Number(b.close)>0).slice(-100);
+          const quote={symbol:key,price,currency:meta.currency||"USD",exchange:meta.fullExchangeName||meta.exchangeName||"Unknown",marketState:meta.marketState||"UNKNOWN",marketTime:meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toISOString():null,previousClose:previous||null,change:previous?price-previous:null,changePercent:previous?(price-previous)/previous*100:null,bars,source:"Yahoo Finance chart data",fetchedAt:new Date().toISOString()};
+          marketQuoteCache.set(key,{cachedAt:Date.now(),quote});
+          return quote;
+        }
+      }
+    }
+  }catch(e){yahooFailure=String(e?.name==="TimeoutError"||e?.name==="AbortError"?"YAHOO_TIMEOUT":e?.message||"YAHOO_FETCH_FAILED").replace(/[^A-Za-z0-9_:-]/g,"_").slice(0,80)}
+  try{return await getStooqQuote(key)}
+  catch(e){
+    const stooqFailure=String(e?.message||"STOOQ_FETCH_FAILED").replace(/[^A-Za-z0-9_:-]/g,"_").slice(0,80);
+    const error=new Error("ALL_PROVIDERS_FAILED");
+    error.providerDiagnostics={yahoo:yahooFailure,stooq:stooqFailure};
+    throw error;
+  }
 }
 const server=http.createServer(async(req,res)=>{
  try{
@@ -123,12 +139,12 @@ const server=http.createServer(async(req,res)=>{
   if(rateLimited(req))return json(res,429,{error:"RATE_LIMITED",message:"Too many requests. Try again shortly."},origin);
   if(req.method==="OPTIONS")return json(res,204,{},origin);
   if(req.method==="GET"&&req.url==="/")return json(res,200,{ok:true,service:"oba-ai-trader-api",status:"ONLINE",mode:"paper",liveExecution:false,persistence:"supabase",message:"OBA AI Trader API is running."},origin);
-  if(req.method==="GET"&&(req.url==="/health"||req.url==="/api/health"))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,marketDataSource:"Yahoo Finance chart data",paperPositionMarking:SUPABASE_SERVICE_ROLE_KEY?"provider-quotes-configured":"requires-server-service-role-key",persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
+  if(req.method==="GET"&&(["/health","/api/health"].includes(new URL(req.url,"http://localhost").pathname)))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,marketDataSource:"Yahoo Finance chart data",paperPositionMarking:SUPABASE_SERVICE_ROLE_KEY?"provider-quotes-configured":"requires-server-service-role-key",persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
   if(req.method==="GET"&&req.url.startsWith("/api/market/quotes")){
     const url=new URL(req.url,"http://localhost");
     const symbols=String(url.searchParams.get("symbols")||"AAPL,MSFT").split(",").map(x=>x.trim().toUpperCase());
     if(!symbols.length||symbols.length>4||symbols.some(x=>!MARKET_SYMBOLS.has(x)))return json(res,400,{error:"UNSUPPORTED_SYMBOL",message:"Supported symbols: AAPL, MSFT, TSLA, NVDA."},origin);
-    const quotes=await Promise.all(symbols.map(async symbol=>{try{return await getMarketQuote(symbol)}catch{return{symbol,error:"MARKET_DATA_UNAVAILABLE",message:"No quote returned. No simulated fallback was used."}}}));
+    const quotes=await Promise.all(symbols.map(async symbol=>{try{return await getMarketQuote(symbol)}catch(e){return{symbol,error:"MARKET_DATA_UNAVAILABLE",message:"No quote returned. No simulated fallback was used.",providerDiagnostics:e?.providerDiagnostics||{reason:"PROVIDER_REQUEST_FAILED"}}}}));
     return json(res,quotes.some(q=>Number.isFinite(q.price))?200:503,{quotes,notice:"Third-party data may be delayed. Paper mode only; no broker orders are sent.",fetchedAt:new Date().toISOString()},origin);
   }
   if(req.method==="POST"&&req.url==="/api/paper/refresh"){
