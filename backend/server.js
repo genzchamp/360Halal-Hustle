@@ -84,17 +84,32 @@ async function auditEvent(supabase,userId,eventType,payload,status,message){
 
 const MARKET_SYMBOLS=new Set(["AAPL","MSFT","TSLA","NVDA"]);
 const marketQuoteCache=new Map();
+async function getStooqQuote(symbol){
+  const key=String(symbol||"").toLowerCase()+".us";
+  const response=await fetch("https://stooq.com/q/d/l/?s="+encodeURIComponent(key)+"&i=d",{headers:{"accept":"text/csv","user-agent":"OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(8000)});
+  if(!response.ok)throw new Error("STOOQ_PROVIDER_HTTP_"+response.status);
+  const csv=await response.text(),lines=csv.trim().split(/\r?\n/);
+  if(lines.length<2||/^No data/i.test(csv))throw new Error("STOOQ_NO_DATA");
+  const header=lines[0].split(",").map(x=>x.trim().toLowerCase());
+  const idx={date:header.indexOf("date"),open:header.indexOf("open"),high:header.indexOf("high"),low:header.indexOf("low"),close:header.indexOf("close"),volume:header.indexOf("volume")};
+  const bars=lines.slice(1).map(line=>{const a=line.split(",");return{date:a[idx.date],open:Number(a[idx.open]),high:Number(a[idx.high]),low:Number(a[idx.low]),close:Number(a[idx.close]),volume:Number(a[idx.volume])}}).filter(b=>b.date&&Number.isFinite(b.close)&&b.close>0).slice(-100);
+  const last=bars[bars.length-1],prev=bars[bars.length-2];
+  if(!last)throw new Error("STOOQ_NO_VALID_BARS");
+  const quote={symbol:String(symbol).toUpperCase(),price:last.close,currency:"USD",exchange:"US equities",marketState:"DAILY_DATA_DELAYED",marketTime:last.date+"T00:00:00.000Z",previousClose:prev?.close??null,change:prev?last.close-prev.close:null,changePercent:prev?(last.close-prev.close)/prev.close*100:null,bars:bars.map(b=>({time:new Date(b.date+"T00:00:00.000Z").getTime(),close:b.close})),source:"Stooq historical daily data (delayed; not a live quote)",fetchedAt:new Date().toISOString(),dataQuality:"daily-close"};
+  marketQuoteCache.set(String(symbol).toUpperCase(),{cachedAt:Date.now(),quote});
+  return quote;
+}
 async function getMarketQuote(symbol){
   const key=String(symbol||"").toUpperCase();
   if(!MARKET_SYMBOLS.has(key))throw new Error("UNSUPPORTED_SYMBOL");
   const cached=marketQuoteCache.get(key);
   if(cached&&Date.now()-cached.cachedAt<15000)return cached.quote;
-  const response=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/"+key+"?range=1d&interval=1m",{headers:{"accept":"application/json","user-agent":"OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(8000)});
-  if(!response.ok)throw new Error("MARKET_PROVIDER_UNAVAILABLE");
+  let response;try{response=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/"+key+"?range=1d&interval=1m",{headers:{"accept":"application/json","user-agent":"OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(6000)});}catch(e){return getStooqQuote(key)}
+  if(!response.ok)return getStooqQuote(key);
   const payload=await response.json(),item=payload?.chart?.result?.[0],meta=item?.meta;
-  if(!meta)throw new Error("MARKET_DATA_UNAVAILABLE");
+  if(!meta)return getStooqQuote(key);
   const price=Number(meta.regularMarketPrice);
-  if(!Number.isFinite(price)||price<=0)throw new Error("MARKET_PRICE_UNAVAILABLE");
+  if(!Number.isFinite(price)||price<=0)return getStooqQuote(key);
   const previous=Number(meta.chartPreviousClose||meta.previousClose||0),series=item.indicators?.quote?.[0]||[];
   const bars=(item.timestamp||[]).map((time,i)=>({time:time*1000,close:series.close?.[i]})).filter(b=>Number.isFinite(Number(b.close))&&Number(b.close)>0).slice(-100);
   const quote={symbol:key,price,currency:meta.currency||"USD",exchange:meta.fullExchangeName||meta.exchangeName||"Unknown",marketState:meta.marketState||"UNKNOWN",marketTime:meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toISOString():null,previousClose:previous||null,change:previous?price-previous:null,changePercent:previous?(price-previous)/previous*100:null,bars,source:"Yahoo Finance chart data",fetchedAt:new Date().toISOString()};
