@@ -23,15 +23,15 @@ function renderMarketQuote(q){
   const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
   set("marketPrice",marketMoney(q.price,q.currency||"USD"));
   const change=q.changePercent;
-  set("marketChange",Number.isFinite(Number(change))?((change>=0?"+":"")+Number(change).toFixed(2)+"%"):"Change unavailable");
+  set("marketChange",q.changePercent!==null&&q.changePercent!==undefined&&Number.isFinite(Number(change))?((change>=0?"+":"")+Number(change).toFixed(2)+"%"):"Change unavailable");
   const ch=document.getElementById("marketChange");if(ch)ch.className=Number(change)>=0?"up":"red";
   set("marketMeta",(q.exchange||"US Equity")+" · "+(q.marketState||"Market status unavailable"));
   set("marketState",q.marketState||"Unknown");
-  set("marketTrend",Number(change)>0.15?"Positive session":Number(change)<-0.15?"Negative session":"Mixed / flat");
-  set("marketSummary",Number.isFinite(Number(change))?"AAPL is "+(Number(change)>0.15?"higher":Number(change)<-0.15?"lower":"little changed")+" versus the provider-reported previous close ("+(Number(change)>=0?"+":"")+Number(change).toFixed(2)+"%). This is descriptive market context, not an AI prediction or a recommendation to trade.":"A quote was received, but the provider did not return a usable previous-close comparison. No directional conclusion is available.");
+  set("marketTrend",q.changePercent===null||q.changePercent===undefined?"Daily close; change unavailable":Number(change)>0.15?"Positive vs previous close":Number(change)<-0.15?"Negative vs previous close":"Little changed vs previous close");
+  set("marketSummary",q.changePercent!==null&&q.changePercent!==undefined&&Number.isFinite(Number(change))?"AAPL is "+(Number(change)>0.15?"higher":Number(change)<-0.15?"lower":"little changed")+" versus the provider-reported previous close ("+(Number(change)>=0?"+":"")+Number(change).toFixed(2)+"%). This is descriptive market context, not an AI prediction or a recommendation to trade.":"A provider price was received, but a comparable previous close was unavailable. No directional conclusion is available.");
   set("marketSource","Source: "+(q.source||"third-party provider"));
   const time=q.marketTime?new Date(q.marketTime):null;
-  set("marketUpdated",time&&!Number.isNaN(time.getTime())?"Provider time: "+time.toLocaleString():"Provider timestamp unavailable");
+  set("marketUpdated",time&&!Number.isNaN(time.getTime())?(q.dataQuality==="daily-close"?"Latest daily candle: ":"Provider quote time: ")+time.toLocaleDateString():"Provider timestamp unavailable");
   renderMarketChart(q.bars);
 }
 async function refreshMarketQuotes(){
@@ -41,11 +41,16 @@ async function refreshMarketQuotes(){
     const data=await obaApi("/api/market/quotes?symbols=AAPL,MSFT");
     (data.quotes||[]).forEach(renderMarketQuote);
     const usable=(data.quotes||[]).filter(q=>Number.isFinite(Number(q.price))).length;
-    if(status)status.textContent=usable?"Market data connected · "+usable+" quotes returned":"No quote available; no synthetic fallback used";
+    if(status)status.textContent=usable?"Market data returned · "+usable+" quotes · provider data may be delayed":"No usable provider quote returned; no simulated fallback used";
+    if(!usable){const price=document.getElementById("marketPrice");if(price)price.textContent="Quote unavailable";const chart=document.getElementById("marketChart");if(chart)chart.innerHTML='<text x="450" y="112" text-anchor="middle" fill="#89958f" font-size="14">Provider returned no usable chart data</text>';}
     const list=document.getElementById("secondaryQuotes");
     if(list)list.innerHTML=(data.quotes||[]).filter(q=>q.symbol!=="AAPL").map(q=>Number.isFinite(Number(q.price))?'<span><b>'+q.symbol+'</b> '+marketMoney(q.price,q.currency||"USD")+' <small>'+(q.marketState||"")+'</small></span>':'<span><b>'+q.symbol+'</b> quote unavailable</span>').join("");
   }catch(e){
     if(status)status.textContent="Market data unavailable · "+(e.message||"try again");
+    const price=document.getElementById("marketPrice");if(price)price.textContent="Quote unavailable";
+    const meta=document.getElementById("marketMeta");if(meta)meta.textContent="The provider did not return a usable quote";
+    const chart=document.getElementById("marketChart");if(chart)chart.innerHTML='<text x="450" y="112" text-anchor="middle" fill="#89958f" font-size="14">Quote unavailable — retry shortly</text>';
+    const summary=document.getElementById("marketSummary");if(summary)summary.textContent="No reliable provider quote was received. No price or trade signal has been fabricated.";
   }
 }
 document.addEventListener("DOMContentLoaded",()=>{
