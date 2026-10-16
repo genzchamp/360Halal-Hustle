@@ -77,6 +77,8 @@
     const policyApproved = policyReview.status === "approved" &&
       typeof policyReview.methodologyId === "string" && policyReview.methodologyId.trim() &&
       typeof policyReview.reviewer === "string" && policyReview.reviewer.trim() &&
+      typeof policyReview.methodologyUrl === "string" && /^https:\/\//i.test(policyReview.methodologyUrl) &&
+      typeof policyReview.reviewEvidenceUrl === "string" && /^https:\/\//i.test(policyReview.reviewEvidenceUrl) &&
       typeof policyReview.reviewedAt === "string" && Number.isFinite(Date.parse(policyReview.reviewedAt));
 
     if (policyApproved) add("POLICY_AUTHORITY", "PASS", "A reviewed methodology record was supplied; its authenticity still requires server-side verification.");
@@ -92,27 +94,27 @@
     else if (validEvidence(ratios)) add("FINANCIAL_SCREEN", "PASS", "Financial-ratio result has a recent timestamp, source, and methodology identifier.");
     else add("FINANCIAL_SCREEN", "UNKNOWN", "No recent, traceable financial-ratio screening result is available.");
 
-    if (tx.instrumentType === "ordinary_share" && tx.contractTermsVerified === true) {
-      add("CONTRACT_TYPE", "PASS", "Instrument is recorded as an ordinary share and its contract terms are marked verified.");
+    if (tx.instrumentType === "ordinary_share" && validEvidence(tx.contractEvidence)) {
+      add("CONTRACT_TYPE", "PASS", "Ordinary-share classification and contract terms have a recent evidence record.");
     } else {
-      add("CONTRACT_TYPE", "UNKNOWN", "Instrument type or actual contract terms have not been verified.");
+      add("CONTRACT_TYPE", "UNKNOWN", "Instrument classification or contract evidence is missing, stale, or untraceable.");
     }
 
     const binaryRule = (key, ruleId, passText, failText) => {
       if (tx[key] === true) add(ruleId, "FAIL", failText);
-      else if (tx[key] === false) add(ruleId, "PASS", passText);
-      else add(ruleId, "UNKNOWN", "Transaction detail is not verified.");
+      else if (tx[key] === false && validEvidence(tx.termsEvidence)) add(ruleId, "PASS", passText);
+      else add(ruleId, "UNKNOWN", "Transaction terms are not supported by recent, traceable evidence.");
     };
     binaryRule("interestBearingMargin", "NO_INTEREST_MARGIN", "No interest-bearing margin is declared in the supplied transaction details.", "Interest-bearing margin/financing is declared; reject under the conservative draft policy.");
     binaryRule("shortSelling", "NO_SHORT_SELLING", "No short sale is declared in the supplied transaction details.", "Short selling is declared; reject under the conservative draft policy.");
     binaryRule("derivative", "NO_DERIVATIVES", "No derivative is declared in the supplied transaction details.", "A derivative is declared; reject under the conservative draft policy.");
 
-    if (tx.ownershipAndSettlementVerified === true) add("OWNERSHIP_SETTLEMENT", "PASS", "Ownership/settlement is marked verified; supporting evidence must be checked before any live use.");
-    else add("OWNERSHIP_SETTLEMENT", "UNKNOWN", "Ownership/possession and settlement evidence is not verified.");
+    if (validEvidence(tx.ownershipSettlementEvidence)) add("OWNERSHIP_SETTLEMENT", "PASS", "Ownership/settlement has a recent, traceable evidence record.");
+    else add("OWNERSHIP_SETTLEMENT", "UNKNOWN", "Ownership/possession and settlement evidence is missing, stale, or untraceable.");
 
-    const requiredEvidence = [business, ratios];
-    if (requiredEvidence.every(validEvidence)) add("DATA_EVIDENCE", "PASS", "Required screening records include source URLs, methodology IDs, and timestamps within 30 days.");
-    else add("DATA_EVIDENCE", "UNKNOWN", "One or more screening records are missing, stale, or lack source/methodology metadata.");
+    const requiredEvidence = [business, ratios, tx.termsEvidence, tx.contractEvidence, tx.ownershipSettlementEvidence];
+    if (requiredEvidence.every(validEvidence)) add("DATA_EVIDENCE", "PASS", "All required screening and transaction records include source URLs, methodology IDs, and timestamps within 30 days.");
+    else add("DATA_EVIDENCE", "UNKNOWN", "One or more screening or transaction records are missing, stale, or lack source/methodology metadata.");
 
     const failed = checks.some(c => c.status === "FAIL");
     const unknown = checks.some(c => c.status === "UNKNOWN");
