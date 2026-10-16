@@ -10,37 +10,61 @@ function paperNum(v){const n=Number(v);return Number.isFinite(n)?n:0}
 function shariahGate(symbol){const x=SHARIAH_WATCHLIST[String(symbol).toUpperCase()];return x?{allowed:true,reason:x.label+"; this is not a fatwa or live certification."}:{allowed:false,reason:"Symbol is not on the prototype approved watchlist."}}
 function paperWeek(){const d=new Date(),first=new Date(d.getFullYear(),0,1);return Math.ceil((((d-first)/86400000)+first.getDay()+1)/7)}
 function paperRiskInputs(){const s=paperState(),r=s.risk||{};return{positions:Number(r.openPositions??s.positions.length),dailyLoss:Number(r.dailyLossPct||0),weeklyLoss:Number(r.weeklyLossPct||0)}}
-function openPaperOrder(){const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");const cfg=getRiskConfig();const html=`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH SCREENING</span><strong>Checking selected asset…</strong><p>Prototype watchlist only. Not a fatwa or live certification.</p></div><div class="formgrid">
-<label>Asset<select id="poSymbol" onchange="updatePaperTicket()"><option>AAPL</option><option>MSFT</option><option>TSLA</option><option>NVDA</option></select></label>
+async function openPaperOrder(){
+  // Refresh provider quotes before opening the ticket so stale hard-coded prices can never be used.
+  await refreshMarketQuotes();
+  const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");
+  const cfg=getRiskConfig();
+  const html=`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH SCREENING</span><strong>Checking selected asset…</strong><p>Prototype watchlist only. Not a fatwa or live certification.</p></div><div class="formgrid">
+<label>Asset<select id="poSymbol" onchange="updatePaperTicket()"><option>AAPL</option><option>MSFT</option></select></label>
 <label>Side<select id="poSide"><option value="BUY">Buy</option></select></label>
-<label>Entry price<input id="poEntry" type="number" step="0.01" value="252.84" oninput="updatePaperTicket()"></label>
-<label>Stop price<input id="poStop" type="number" step="0.01" value="250.32" oninput="updatePaperTicket()"></label>
-<label>Target price<input id="poTarget" type="number" step="0.01" value="258.38" oninput="updatePaperTicket()"></label>
+<label>Entry price (latest provider quote)<input id="poEntry" type="number" step="0.01" placeholder="Waiting for quote…" readonly></label>
+<label>Stop price<input id="poStop" type="number" step="0.01" placeholder="Waiting for quote…" oninput="updatePaperRiskReadout()"></label>
+<label>Target price<input id="poTarget" type="number" step="0.01" placeholder="Waiting for quote…" oninput="updatePaperRiskReadout()"></label>
 <label>Risk per trade<input id="poRisk" type="number" value="${cfg.positionRisk.toFixed(1)}" readonly disabled></label>
-<label>Quantity<input id="poQty" type="number" min="1" step="1" value="39" oninput="updatePaperRiskReadout()"></label></div>
+<label>Quantity<input id="poQty" type="number" min="1" step="1" value="1" oninput="updatePaperRiskReadout()"></label></div>
+<div class="paper-note" id="paperQuoteStatus">Checking the latest provider quote…</div>
 <div class="paper-note" id="paperRiskReadout">Calculating risk…</div>
-<div class="paper-note">PAPER ONLY · Prices are synthetic simulations, not live market quotes. Orders fill at the entered simulated price; automatic stop/target checks use simulated prices. Shariah screening is a prototype watchlist, not a fatwa or certification.</div>
-<div class="actions"><button id="paperSubmitBtn" class="btn primary" onclick="submitPaperOrder()">Validate & simulate fill</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`;
-mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open");updatePaperTicket()}
+<div class="paper-note">PAPER ONLY · Entry is locked to the latest provider quote received by this page. Quotes can be delayed or unavailable. No broker order is sent. Shariah status is a prototype watchlist, not a fatwa or certification.</div>
+<div class="actions"><button id="paperSubmitBtn" class="btn primary" onclick="submitPaperOrder()">Validate paper order</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`;
+  mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open");
+  OBA_LAST_TICKET_SYMBOL="";
+  updatePaperTicket();
+}
 let OBA_LAST_TICKET_SYMBOL="";
 function updatePaperTicket(){
   const symbol=document.getElementById("poSymbol")?.value?.toUpperCase();
-  if(symbol&&symbol!==OBA_LAST_TICKET_SYMBOL){OBA_LAST_TICKET_SYMBOL=symbol;const quote=window.OBA_MARKET_QUOTES?.[symbol],price=Number(quote?.price);if(Number.isFinite(price)&&price>0){const entryEl=document.getElementById("poEntry"),stopEl=document.getElementById("poStop"),targetEl=document.getElementById("poTarget");if(entryEl&&!entryEl.matches(":focus"))entryEl.value=price.toFixed(2);if(stopEl&&!stopEl.matches(":focus"))stopEl.value=(price*0.99).toFixed(2);if(targetEl&&!targetEl.matches(":focus"))targetEl.value=(price*1.02).toFixed(2);}}
-  const entry=paperNum(document.getElementById("poEntry")?.value);
-  const stop=paperNum(document.getElementById("poStop")?.value);
-  const riskInput=document.getElementById("poRisk");
-  const qty=document.getElementById("poQty");
-  const cfg=getRiskConfig();
-  const gate=shariahGate(symbol);
-  const status=document.getElementById("paperShariahStatus");
-  if(status)status.innerHTML=`<span class="sub">SHARIAH SCREENING</span><strong style="color:${gate.allowed?"var(--g)":"var(--gold)"}">${gate.allowed?"✓ "+gate.reason:"⚠ "+gate.reason}</strong><p>Prototype status only; production screening needs documented methodology, current data and scholarly review.</p>`;
-  if(riskInput && !riskInput.matches(":focus")) riskInput.value=(cfg.positionRisk*100).toFixed(1);
-  const s=paperState();
-  const riskPct=cfg.positionRisk/100;
-  const perShare=Math.max(0,entry-stop);
+  const quote=window.OBA_MARKET_QUOTES?.[symbol];
+  const price=Number(quote?.price);
+  const quoteTime=Date.parse(quote?.fetchedAt||"");
+  const fresh=Number.isFinite(quoteTime)&&Date.now()-quoteTime<120000&&Date.now()>=quoteTime;
+  const entryEl=document.getElementById("poEntry"),stopEl=document.getElementById("poStop"),targetEl=document.getElementById("poTarget"),qty=document.getElementById("poQty");
+  const status=document.getElementById("paperQuoteStatus");
+  const changed=symbol!==OBA_LAST_TICKET_SYMBOL;
+  if(changed)OBA_LAST_TICKET_SYMBOL=symbol||"";
+  if(entryEl){
+    entryEl.value=Number.isFinite(price)&&price>0&&fresh?price.toFixed(2):"";
+    entryEl.dataset.quoteTime=quote?.fetchedAt||"";
+  }
+  if(changed&&Number.isFinite(price)&&price>0&&fresh){
+    if(stopEl)stopEl.value=(price*0.98).toFixed(2);
+    if(targetEl)targetEl.value=(price*1.048).toFixed(2);
+  }else if(changed){
+    if(stopEl)stopEl.value="";
+    if(targetEl)targetEl.value="";
+  }
+  if(status)status.textContent=Number.isFinite(price)&&price>0&&fresh
+    ? "Quote ready: "+symbol+" at $"+price.toFixed(2)+" · received "+new Date(quote.fetchedAt).toLocaleTimeString()+". Confirm stop, target and quantity before submitting."
+    : "No fresh provider quote for "+(symbol||"this asset")+". Refresh quotes and try again. Orders are blocked without a fresh quote.";
+  const gate=shariahGate(symbol),screen=document.getElementById("paperShariahStatus");
+  if(screen)screen.innerHTML=`<span class="sub">SHARIAH SCREENING</span><strong style="color:${gate.allowed?"var(--g)":"var(--gold)"}">${gate.allowed?"✓ "+gate.reason:"⚠ "+gate.reason}</strong><p>Prototype status only; production screening needs documented methodology, current data and scholarly review.</p>`;
+  const riskInput=document.getElementById("poRisk"),cfg=getRiskConfig();
+  if(riskInput)riskInput.value=cfg.positionRisk.toFixed(1);
+  const s=paperState(),riskPct=cfg.positionRisk/100;
+  const perShare=Math.max(0,Number(entryEl?.value||0)-Number(stopEl?.value||0));
   const maxRisk=s.balance*riskPct;
   const suggested=perShare>0?Math.max(1,Math.floor(maxRisk/perShare)):1;
-  if(qty && !qty.matches(":focus")) qty.value=suggested;
+  if(qty&&!qty.matches(":focus"))qty.value=suggested;
   updatePaperRiskReadout();
 }
 function updatePaperRiskReadout(){
@@ -66,7 +90,7 @@ function getPendingPaperOrder(payload){
   return key;
 }
 function clearPendingPaperOrder(){localStorage.removeItem(OBA_PENDING_ORDER_KEY)}
-async function submitPaperOrder(){const submitBtn=document.getElementById("paperSubmitBtn");if(submitBtn?.disabled)return;if(submitBtn)submitBtn.disabled=true;const symbol=document.getElementById("poSymbol").value.toUpperCase(),entry=paperNum(document.getElementById("poEntry").value),stop=paperNum(document.getElementById("poStop").value),target=paperNum(document.getElementById("poTarget").value),qty=Math.floor(paperNum(document.getElementById("poQty").value)),gate=shariahGate(symbol),s=paperState(),selectedRisk=paperNum(document.getElementById("poRisk")?.value)/100;
+async function submitPaperOrder(){const submitBtn=document.getElementById("paperSubmitBtn");if(submitBtn?.disabled)return;if(submitBtn)submitBtn.disabled=true;const symbol=document.getElementById("poSymbol").value.toUpperCase(),quote=window.OBA_MARKET_QUOTES?.[symbol],quoteTime=Date.parse(quote?.fetchedAt||""),fresh=Number.isFinite(quoteTime)&&Date.now()-quoteTime<120000&&Date.now()>=quoteTime,entry=paperNum(document.getElementById("poEntry").value),stop=paperNum(document.getElementById("poStop").value),target=paperNum(document.getElementById("poTarget").value),qty=Math.floor(paperNum(document.getElementById("poQty").value)),gate=shariahGate(symbol),s=paperState(),selectedRisk=paperNum(document.getElementById("poRisk")?.value)/100;if(!fresh||!Number.isFinite(Number(quote?.price))||Math.abs(entry-Number(quote.price))>0.011){if(submitBtn)submitBtn.disabled=false;modal("Fresh quote required","No paper order was sent. Refresh the provider quote and reopen the ticket so the entry price matches the latest available quote.");return;}
 if(!gate.allowed){if(submitBtn)submitBtn.disabled=false;closeM();modal("Shariah gate blocked",gate.reason);paperLog(symbol,"ENTRY","BLOCKED",0,gate.reason);return}
 if(qty<1){if(submitBtn)submitBtn.disabled=false;closeM();modal("Order blocked","Quantity must be at least 1.");return}
 const rd=paperRiskInputs(),cfg=getRiskConfig(),decision=riskDecision({account:s.balance,entry,stop,target,positions:rd.positions,dailyLoss:rd.dailyLoss*100,weeklyLoss:rd.weeklyLoss*100}),requestedRisk=Math.max(0,entry-stop)*qty,maxRisk=s.balance*cfg.positionRisk/100;
