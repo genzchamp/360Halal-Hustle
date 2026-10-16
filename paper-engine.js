@@ -1,13 +1,22 @@
 /* OBA AI Trader — Paper Trading Engine v2
    Frontend simulation only. No broker/API connectivity. */
 const OBA_PAPER_KEY="oba_ai_trader_paper_v2";
-const SHARIAH_WATCHLIST={AAPL:{status:"approved",label:"Approved prototype watchlist"},MSFT:{status:"approved",label:"Approved prototype watchlist"}};
 const START_BALANCE=10000;
 function paperState(){try{const s=JSON.parse(localStorage.getItem(OBA_PAPER_KEY));if(s&&Number.isFinite(s.balance)&&Array.isArray(s.positions)&&Array.isArray(s.journal))return s}catch{}return{balance:START_BALANCE,equity:START_BALANCE,positions:[],journal:[]}}
 function savePaper(s){localStorage.setItem(OBA_PAPER_KEY,JSON.stringify(s));renderPaper()}
 async function syncPaperState(){try{const r=await obaApi("/api/paper/state");const s=paperState();s.balance=Number(r.account?.balance||s.balance);s.equity=Number(r.equity||s.balance);s.positions=(r.positions||[]).filter(p=>p.status==="OPEN").map(p=>({id:p.id,symbol:p.symbol,side:p.side,entry:Number(p.entry),stop:Number(p.stop),target:Number(p.target),qty:Number(p.quantity),current:Number(p.current_price||p.entry),opened:p.opened_at,apiOrderId:p.order_id}));const serverJournal=(r.journal||[]).map(j=>({timestamp:Date.parse(j.created_at)||0,time:new Date(j.created_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}),day:new Date(j.created_at).toISOString().slice(0,10),symbol:j.symbol,action:j.action,status:j.action==="EXIT"?"CLOSED":j.action,pnl:Number(j.pnl||0),reason:j.notes||"",source:"server"}));const localOnly=(s.journal||[]).filter(j=>j.localOnly===true);const seen=new Set(serverJournal.map(j=>[j.symbol,j.action,j.status,j.reason,j.day].join("|")));const keepLocal=localOnly.filter(j=>!seen.has([j.symbol,j.action,j.status,j.reason,j.day].join("|")));s.journal=[...serverJournal,...keepLocal].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,100);s.risk=r.risk||null;if(typeof setServerRisk==="function")setServerRisk(s.risk);savePaper(s);return s}catch(e){return paperState()}}
 function paperNum(v){const n=Number(v);return Number.isFinite(n)?n:0}
-function shariahGate(symbol){const x=SHARIAH_WATCHLIST[String(symbol).toUpperCase()];return x?{allowed:true,reason:x.label+"; this is not a fatwa or live certification."}:{allowed:false,reason:"Symbol is not on the prototype approved watchlist."}}
+function shariahGate(symbol){
+  if(!window.OBA_SHARIAH_ENGINE)return{allowed:false,decision:"UNABLE_TO_VERIFY",reason:"Shariah decision engine did not load.",checks:[]};
+  return window.OBA_SHARIAH_ENGINE.evaluate({symbol,transaction:{},screening:{},policyReview:{}});
+}
+function shariahEscape(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
+function renderShariahDecision(gate){
+  const screen=document.getElementById("paperShariahStatus");if(!screen)return;
+  const color=gate.decision==="REJECTED"?"var(--red)":gate.decision==="PERMITTED_UNDER_POLICY"?"var(--g)":"var(--gold)";
+  const checks=(gate.checks||[]).map(c=>'<li><b>'+shariahEscape(c.status)+' · '+shariahEscape(c.label)+':</b> '+shariahEscape(c.reason)+' '+(c.sources||[]).map(s=>'<a href="'+shariahEscape(s.url)+'" target="_blank" rel="noopener noreferrer">'+shariahEscape(s.title)+'</a>').join(" · ")+'</li>').join("");
+  screen.innerHTML='<span class="sub">SHARIAH DECISION · '+shariahEscape(gate.policyVersion||"engine unavailable")+'</span><strong style="display:block;color:'+color+'">'+shariahEscape(gate.decision||"UNABLE_TO_VERIFY")+'</strong><p>'+shariahEscape(gate.summary||gate.reason)+'</p><details><summary>View rule-by-rule evidence and reasons</summary><ol style="padding-left:18px;line-height:1.6">'+checks+'</ol></details><p>Draft policy only. No trade is permitted until current screening evidence and a qualified-scholar-reviewed methodology are verified.</p>';
+}
 function paperWeek(){const d=new Date(),first=new Date(d.getFullYear(),0,1);return Math.ceil((((d-first)/86400000)+first.getDay()+1)/7)}
 function paperRiskInputs(){const s=paperState(),r=s.risk||{};return{positions:Number(r.openPositions??s.positions.length),dailyLoss:Number(r.dailyLossPct||0),weeklyLoss:Number(r.weeklyLossPct||0)}}
 async function openPaperOrder(){
@@ -15,7 +24,7 @@ async function openPaperOrder(){
   await refreshMarketQuotes();
   const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");
   const cfg=getRiskConfig();
-  const html=`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH SCREENING</span><strong>Checking selected asset…</strong><p>Prototype watchlist only. Not a fatwa or live certification.</p></div><div class="formgrid">
+  const html=`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH DECISION</span><strong>Checking evidence…</strong><p>Missing evidence must block the order.</p></div><div class="formgrid">
 <label>Asset<select id="poSymbol" onchange="updatePaperTicket()"><option>AAPL</option><option>MSFT</option></select></label>
 <label>Side<select id="poSide"><option value="BUY">Buy</option></select></label>
 <label>Entry price (latest provider quote)<input id="poEntry" type="number" step="0.01" placeholder="Waiting for quote…" readonly></label>
@@ -25,7 +34,7 @@ async function openPaperOrder(){
 <label>Quantity<input id="poQty" type="number" min="1" step="1" value="1" oninput="updatePaperRiskReadout()"></label></div>
 <div class="paper-note" id="paperQuoteStatus">Checking the latest provider quote…</div>
 <div class="paper-note" id="paperRiskReadout">Calculating risk…</div>
-<div class="paper-note">PAPER ONLY · Entry is locked to the latest provider quote received by this page. Quotes can be delayed or unavailable. No broker order is sent. Shariah status is a prototype watchlist, not a fatwa or certification.</div>
+<div class="paper-note">PAPER ONLY · No broker order is sent. A ticker alone is not proof of Shariah permissibility. This draft engine blocks orders unless the required evidence and scholar-reviewed methodology are verified.</div>
 <div class="actions"><button id="paperSubmitBtn" class="btn primary" onclick="submitPaperOrder()">Validate paper order</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`;
   mt.textContent="Paper order ticket";mx.innerHTML=html;m.classList.add("open");
   OBA_LAST_TICKET_SYMBOL="";
@@ -56,8 +65,7 @@ function updatePaperTicket(){
   if(status)status.textContent=Number.isFinite(price)&&price>0&&fresh
     ? "Quote ready: "+symbol+" at $"+price.toFixed(2)+" · received "+new Date(quote.fetchedAt).toLocaleTimeString()+". Confirm stop, target and quantity before submitting."
     : "No fresh provider quote for "+(symbol||"this asset")+". Refresh quotes and try again. Orders are blocked without a fresh quote.";
-  const gate=shariahGate(symbol),screen=document.getElementById("paperShariahStatus");
-  if(screen)screen.innerHTML=`<span class="sub">SHARIAH SCREENING</span><strong style="color:${gate.allowed?"var(--g)":"var(--gold)"}">${gate.allowed?"✓ "+gate.reason:"⚠ "+gate.reason}</strong><p>Prototype status only; production screening needs documented methodology, current data and scholarly review.</p>`;
+  const gate=shariahGate(symbol);renderShariahDecision(gate);
   const riskInput=document.getElementById("poRisk"),cfg=getRiskConfig();
   if(riskInput)riskInput.value=cfg.positionRisk.toFixed(1);
   const s=paperState(),riskPct=cfg.positionRisk/100;
