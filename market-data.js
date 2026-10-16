@@ -31,7 +31,7 @@ function renderMarketQuote(q){
   set("marketSummary",q.changePercent!==null&&q.changePercent!==undefined&&Number.isFinite(Number(change))?"AAPL is "+(Number(change)>0.15?"higher":Number(change)<-0.15?"lower":"little changed")+" versus the provider-reported previous close ("+(Number(change)>=0?"+":"")+Number(change).toFixed(2)+"%). This is descriptive market context, not an AI prediction or a recommendation to trade.":"A provider price was received, but a comparable previous close was unavailable. No directional conclusion is available.");
   set("marketSource","Source: "+(q.source||"third-party provider"));
   const time=q.marketTime?new Date(q.marketTime):null;
-  set("marketUpdated",time&&!Number.isNaN(time.getTime())?(q.dataQuality==="daily-close"?"Latest daily candle: ":"Provider quote time: ")+time.toLocaleDateString():"Provider timestamp unavailable");
+  set("marketUpdated",time&&!Number.isNaN(time.getTime())?(q.dataQuality==="daily-close"?"Latest daily candle: ":"Provider quote time: ")+time.toLocaleString():"Provider timestamp unavailable");
   renderMarketChart(q.bars);
 }
 async function refreshMarketQuotes(){
@@ -44,7 +44,7 @@ async function refreshMarketQuotes(){
     if(status)status.textContent=usable?"Market data returned · "+usable+" quotes · provider data may be delayed":"No usable provider quote returned; no simulated fallback used";
     if(!usable){const price=document.getElementById("marketPrice");if(price)price.textContent="Quote unavailable";const chart=document.getElementById("marketChart");if(chart)chart.innerHTML='<text x="450" y="112" text-anchor="middle" fill="#89958f" font-size="14">Provider returned no usable chart data</text>';}
     const list=document.getElementById("secondaryQuotes");
-    if(list)list.innerHTML=(data.quotes||[]).filter(q=>q.symbol!=="AAPL").map(q=>Number.isFinite(Number(q.price))?'<span><b>'+q.symbol+'</b> '+marketMoney(q.price,q.currency||"USD")+' <small>'+(q.marketState||"")+'</small></span>':'<span><b>'+q.symbol+'</b> quote unavailable</span>').join("");
+    if(list){list.style.fontSize="12px";list.style.lineHeight="1.8";list.innerHTML="<b style='color:#89958f'>OTHER QUOTES · </b>"+(data.quotes||[]).filter(q=>q.symbol!=="AAPL").map(q=>Number.isFinite(Number(q.price))?'<span style="display:inline-block;border:1px solid #ffffff20;border-radius:8px;padding:5px 9px;margin:3px"><b>'+q.symbol+'</b> <strong>'+marketMoney(q.price,q.currency||"USD")+'</strong> <small>'+(q.marketState||"")+'</small></span>':'<span><b>'+q.symbol+'</b> quote unavailable</span>').join("");}
   }catch(e){
     if(status)status.textContent="Market data unavailable · "+(e.message||"try again");
     const price=document.getElementById("marketPrice");if(price)price.textContent="Quote unavailable";
@@ -55,5 +55,5 @@ async function refreshMarketQuotes(){
 }
 document.addEventListener("DOMContentLoaded",()=>{
   refreshMarketQuotes();
-  setInterval(refreshMarketQuotes,60000);
+  setInterval(refreshMarketQuotes,30000);
 });
