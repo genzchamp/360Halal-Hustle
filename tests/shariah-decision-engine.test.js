@@ -47,16 +47,19 @@ const validDecision = engine.evaluate({
     status: "approved",
     methodologyId: "scholar-reviewed-method-v1",
     reviewer: "Test reviewer fixture",
+    methodologyUrl: "https://example.org/methodology",
+    reviewEvidenceUrl: "https://example.org/review-record",
     reviewedAt: now
   },
   screening: { businessActivity: evidence(), financialRatios: evidence() },
   transaction: {
     instrumentType: "ordinary_share",
-    contractTermsVerified: true,
+    contractEvidence: evidence(),
+    termsEvidence: evidence(),
     interestBearingMargin: false,
     shortSelling: false,
     derivative: false,
-    ownershipAndSettlementVerified: true
+    ownershipSettlementEvidence: evidence()
   }
 });
 assert.equal(validDecision.decision, "PERMITTED_UNDER_POLICY");
