@@ -9,7 +9,8 @@ const MAX_OPEN_POSITIONS=Number(process.env.MAX_OPEN_POSITIONS||3);
 const SUPABASE_URL=process.env.SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY=process.env.SUPABASE_PUBLISHABLE_KEY;
 const SUPABASE_SERVICE_ROLE_KEY=process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SHARIAH_WATCHLIST=new Set(["AAPL","MSFT"]);
+const SHARIAH_POLICY_VERSION="oba-shariah-policy-draft-0.1.0";
+const SHARIAH_POLICY_STATUS="DRAFT_REQUIRES_QUALIFIED_SCHOLAR_REVIEW";
 const ALLOWED_ORIGINS=new Set([
   "https://genzchamp.github.io",
   "http://localhost:3000",
@@ -139,7 +140,8 @@ const server=http.createServer(async(req,res)=>{
   if(rateLimited(req))return json(res,429,{error:"RATE_LIMITED",message:"Too many requests. Try again shortly."},origin);
   if(req.method==="OPTIONS")return json(res,204,{},origin);
   if(req.method==="GET"&&req.url==="/")return json(res,200,{ok:true,service:"oba-ai-trader-api",status:"ONLINE",mode:"paper",liveExecution:false,persistence:"supabase",message:"OBA AI Trader API is running."},origin);
-  if(req.method==="GET"&&(["/health","/api/health"].includes(new URL(req.url,"http://localhost").pathname)))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,marketDataSource:"Yahoo Finance chart data",paperPositionMarking:SUPABASE_SERVICE_ROLE_KEY?"provider-quotes-configured":"requires-server-service-role-key",persistence:SUPABASE_URL?"supabase-configured":"not-configured"},origin);
+  if(req.method==="GET"&&(["/health","/api/health"].includes(new URL(req.url,"http://localhost").pathname)))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,marketDataSource:"Yahoo Finance chart data",paperPositionMarking:SUPABASE_SERVICE_ROLE_KEY?"provider-quotes-configured":"requires-server-service-role-key",persistence:SUPABASE_URL?"supabase-configured":"not-configured",shariahPolicyVersion:SHARIAH_POLICY_VERSION,shariahPolicyStatus:SHARIAH_POLICY_STATUS,orderSubmissionEnabled:false},origin);
+  if(req.method==="GET"&&new URL(req.url,"http://localhost").pathname==="/api/shariah/status")return json(res,200,{policyVersion:SHARIAH_POLICY_VERSION,policyStatus:SHARIAH_POLICY_STATUS,orderSubmissionEnabled:false,decision:"UNABLE_TO_VERIFY",reason:"No verified scholar-approved policy and server-side screening evidence are configured. All orders remain blocked.",liveExecution:false},origin);
   if(req.method==="GET"&&req.url.startsWith("/api/market/quotes")){
     const url=new URL(req.url,"http://localhost");
     const symbols=String(url.searchParams.get("symbols")||"AAPL,MSFT").split(",").map(x=>x.trim().toUpperCase());
@@ -196,50 +198,20 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==="GET"&&req.url==="/api/audit"){const {data,error}=await a.supabase.from("audit_events").select("*").order("created_at",{ascending:false}).limit(200);if(error)throw error;return json(res,200,{events:data||[]},origin)}
     if(req.method==="GET"&&req.url==="/api/paper/orders"){const {data,error}=await a.supabase.from("paper_orders").select("*").order("created_at",{ascending:false}).limit(200);if(error)throw error;return json(res,200,{orders:data||[]},origin)}
     const input=await body(req),symbol=String(input.symbol||"").toUpperCase();
-    if(!SHARIAH_WATCHLIST.has(symbol)){
-      await auditEvent(a.supabase,a.user.id,"PAPER_ORDER",input,"BLOCKED","Symbol is not on the prototype approved watchlist.");
-      return json(res,422,{status:"BLOCKED",code:"SHARIAH_GATE",reason:"Symbol is not on the prototype approved watchlist."},origin);
-    }
-    const rpc=await a.supabase.rpc("create_paper_order_atomic",{
-      p_symbol:symbol,
-      p_entry:Number(input.entry),
-      p_stop:Number(input.stop),
-      p_target:Number(input.target),
-      p_quantity:Number(input.quantity),
-      p_side:"BUY",
-      p_idempotency_key:String(input.idempotencyKey||"")||null
-    });
-    if(rpc.error){
-      const map={
-        AUTH_REQUIRED:["AUTH_REQUIRED","Authentication is required."],
-        SHARIAH_GATE:["SHARIAH_GATE","Symbol is not on the approved watchlist."],
-        SHARIAH_WATCHLIST_BLOCK:["SHARIAH_GATE","Symbol is not on the approved watchlist."],
-        SIDE_NOT_ALLOWED:["SIDE_NOT_ALLOWED","Only BUY paper orders are enabled."],
-        INVALID_ORDER:["INVALID_ORDER","Invalid entry, stop or target."],
-        INVALID_PRICE:["INVALID_ORDER","Invalid entry, stop or target."],
-        STOP_REQUIRED:["STOP_REQUIRED","Long paper orders require a stop below entry."],
-        STOP_MUST_BE_BELOW_ENTRY:["STOP_REQUIRED","Long paper orders require a stop below entry."],
-        INVALID_QUANTITY:["INVALID_QUANTITY","Quantity must be at least 1."],
-        INVALID_IDEMPOTENCY_KEY:["INVALID_IDEMPOTENCY_KEY","Invalid order request key."],
-        MAX_POSITIONS:["MAX_POSITIONS","Maximum open positions reached."],
-        MAX_OPEN_POSITIONS:["MAX_POSITIONS","Maximum open positions reached."],
-        DAILY_LOSS_LIMIT:["DAILY_LOSS_LIMIT","Daily loss limit reached."],
-        WEEKLY_LOSS_LIMIT:["WEEKLY_LOSS_LIMIT","Weekly loss limit reached."],
-        POSITION_RISK:["POSITION_RISK","Requested position risk exceeds the server risk limit."],
-        MAX_RISK_PER_TRADE:["POSITION_RISK","Requested position risk exceeds the server risk limit."],
-        REWARD_RISK:["REWARD_RISK","Reward/risk must be at least 1:1."],
-        REWARD_RISK_TOO_LOW:["REWARD_RISK","Reward/risk must be at least 1:1."],
-        INVALID_REWARD_RISK:["REWARD_RISK","Reward/risk must be at least 1:1."],
-        UNAUTHENTICATED:["AUTH_REQUIRED","Authentication is required."],
-        PAPER_ACCOUNT_NOT_FOUND:["PAPER_ACCOUNT_NOT_FOUND","Paper account could not be created or found."]
-      };
-      const key=String(rpc.error.message||"").split(":")[0];
-      const [code,reason]=map[key]||["ORDER_REJECTED","Paper order was rejected by the server risk gate."];
-      await auditEvent(a.supabase,a.user.id,"PAPER_ORDER",input,"BLOCKED",reason);
-      return json(res,422,{status:"BLOCKED",code,reason},origin);
-    }
-    const order=rpc.data?.order;
-    return json(res,201,{id:order?.id,positionId:rpc.data?.position?.id,status:"SIMULATED",side:order?.side,symbol:order?.symbol,entry:order?.entry,stop:order?.stop,target:order?.target,quantity:order?.quantity,createdAt:order?.created_at},origin);
+    // Fail closed at the API as well as the database. Client-side approval claims
+    // are not trusted, and the draft policy is not authorized to permit any trade.
+    const block={
+      status:"BLOCKED",
+      code:"SHARIAH_POLICY_NOT_APPROVED",
+      symbol:symbol||null,
+      decision:"UNABLE_TO_VERIFY",
+      policyVersion:SHARIAH_POLICY_VERSION,
+      policyStatus:SHARIAH_POLICY_STATUS,
+      reason:"No qualified-scholar-approved methodology and independently verified screening evidence are configured. No paper order was sent.",
+      liveExecution:false
+    };
+    await auditEvent(a.supabase,a.user.id,"PAPER_ORDER",input,"BLOCKED",block.reason);
+    return json(res,422,block,origin);
   }
   return json(res,404,{error:"NOT_FOUND"},origin);
   }catch(e){console.error(e);const message=e?.message==="REQUEST_TOO_LARGE"?"Request body is too large.":"Request could not be processed.";return json(res,e?.message==="REQUEST_TOO_LARGE"?413:400,{error:e?.message==="REQUEST_TOO_LARGE"?"REQUEST_TOO_LARGE":"BAD_REQUEST",message},String(req.headers.origin||""))}
