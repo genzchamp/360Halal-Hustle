@@ -12,15 +12,19 @@ function normalizeYahooChart(payload) {
     throw new Error("YAHOO_CHART_NO_RESULT" + (code ? "_" + String(code).replace(/[^A-Za-z0-9_-]/g, "") : ""));
   }
   const timestamps = result.timestamp || [];
-  const quote = result.indicators && result.indicators.quote && result.indicators.quote[0];
+  const indicators = result.indicators || {};
+  const quote = indicators.quote && indicators.quote[0];
   if (!quote) throw new Error("YAHOO_CHART_MISSING_OHLCV");
+  const adjusted = indicators.adjclose && indicators.adjclose[0] && indicators.adjclose[0].adjclose;
   const bars = [];
   for (let i = 0; i < timestamps.length; i++) {
     const open = quote.open && quote.open[i], high = quote.high && quote.high[i];
     const low = quote.low && quote.low[i], close = quote.close && quote.close[i];
     const volume = quote.volume && quote.volume[i];
-    if (![open, high, low, close, volume].every(Number.isFinite)) continue;
-    bars.push({ timestamp: new Date(timestamps[i] * 1000).toISOString(), open, high, low, close, volume });
+    if (![open, high, low, close, volume].every(Number.isFinite) || close <= 0) continue;
+    const adjClose = adjusted && adjusted[i];
+    const factor = Number.isFinite(adjClose) && adjClose > 0 ? adjClose / close : 1;
+    bars.push({ timestamp: new Date(timestamps[i] * 1000).toISOString(), open: open * factor, high: high * factor, low: low * factor, close: close * factor, volume });
   }
   if (bars.length < 100) throw new Error("INSUFFICIENT_VALID_HISTORICAL_BARS_" + bars.length);
   // Reuse the strategy's OHLCV and chronology validator before accepting provider data.
@@ -90,6 +94,7 @@ async function main(argv = process.argv.slice(2)) {
     generatedAt: new Date().toISOString(),
     symbol,
     provider: "Yahoo Finance chart endpoint",
+    priceAdjustment: "Adjusted-close factor applied to OHLC when supplied by provider; otherwise raw OHLC",
     interval: "1d",
     range,
     sourceBars: bars.length,
