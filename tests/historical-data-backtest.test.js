@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 const { normalizeYahooChart, splitChronologically } = require("../historical-data-backtest.js");
-function payload(count = 140) {
+function payload(count = 200) {
   const timestamp = [], open = [], high = [], low = [], close = [], volume = [];
   let price = 100;
   for (let i = 0; i < count; i++) {
@@ -13,11 +13,11 @@ function payload(count = 140) {
   return { chart: { result: [{ timestamp, indicators: { quote: [{ open, high, low, close, volume }] } }] } };
 }
 const bars = normalizeYahooChart(payload());
-assert.equal(bars.length, 140);
+assert.equal(bars.length, 200);
 assert.equal(bars[0].close, 99.8);
 const split = splitChronologically(bars);
-assert.equal(split.train.length, 98);
-assert.equal(split.test.length, 42);
+assert.equal(split.train.length, 140);
+assert.equal(split.test.length, 60);
 assert.ok(split.train.at(-1).time < split.test[0].time);
 assert.throws(() => normalizeYahooChart({ chart: { result: null, error: { code: "Not Found" } } }), /YAHOO_CHART_NO_RESULT/);
 assert.throws(() => splitChronologically(bars, 0.4), /INVALID_CHRONOLOGICAL_SPLIT/);
