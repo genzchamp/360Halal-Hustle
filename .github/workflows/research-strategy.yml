@@ -19,3 +19,7 @@ jobs:
         run: node --check historical-data-backtest.js
       - name: Run historical data tests
         run: node tests/historical-data-backtest.test.js
+      - name: Check strategy comparison syntax
+        run: node --check strategy-comparison.js
+      - name: Run strategy comparison tests
+        run: node tests/strategy-comparison.test.js
