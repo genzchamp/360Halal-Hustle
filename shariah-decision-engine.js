@@ -118,7 +118,7 @@
 
     const failed = checks.some(c => c.status === "FAIL");
     const unknown = checks.some(c => c.status === "UNKNOWN");
-    const decision = failed ? "REJECTED" : unknown ? "UNABLE_TO_VERIFY" : "PERMITTED_UNDER_POLICY";
+    const decision = failed ? "REJECTED" : (POLICY_STATUS !== "APPROVED" || unknown) ? "UNABLE_TO_VERIFY" : "PERMITTED_UNDER_POLICY";
     const reasons = checks.filter(c => c.status !== "PASS").map(c => ({ ruleId: c.ruleId, status: c.status, reason: c.reason }));
     return {
       decisionId: "shariah-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8),
