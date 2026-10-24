@@ -1,0 +1,43 @@
+name: OBA AI Trader strategy comparison
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "Historical symbol"
+        required: true
+        type: choice
+        options:
+          - AAPL
+          - MSFT
+          - TSLA
+          - NVDA
+        default: AAPL
+      range:
+        description: "Daily history range"
+        required: true
+        type: choice
+        options:
+          - 1y
+          - 2y
+          - 5y
+        default: 2y
+permissions:
+  contents: read
+jobs:
+  compare-strategies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check comparison runner
+        run: node --check strategy-comparison.js
+      - name: Run strategy comparison
+        run: node strategy-comparison.js "${{ inputs.symbol }}" "${{ inputs.range }}" > strategy-comparison-report.json
+      - name: Upload comparison report
+        uses: actions/upload-artifact@v4
+        with:
+          name: oba-strategy-comparison-${{ inputs.symbol }}-${{ inputs.range }}
+          path: strategy-comparison-report.json
+          retention-days: 14
