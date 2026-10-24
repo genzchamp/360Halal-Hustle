@@ -62,7 +62,10 @@ const validDecision = engine.evaluate({
     ownershipSettlementEvidence: evidence()
   }
 });
-assert.equal(validDecision.decision, "PERMITTED_UNDER_POLICY");
-assert.equal(validDecision.allowed, true);
+assert.equal(validDecision.decision, "UNABLE_TO_VERIFY");
+assert.equal(validDecision.allowed, false);
+assert.equal(engine.POLICY_STATUS, "DRAFT_REQUIRES_QUALIFIED_SCHOLAR_REVIEW");
+
+console.log("Regression verified: even a complete client-supplied approval fixture cannot override the unapproved draft policy.");
 
 console.log("Shariah decision engine tests passed: unknown blocks, prohibited financing rejects, stale evidence blocks, complete fixture evaluates.");
