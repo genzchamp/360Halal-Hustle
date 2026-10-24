@@ -43,12 +43,13 @@ function splitChronologically(bars, fraction = DEFAULTS.trainFraction) {
   return { train, test, splitIndex, splitTimestamp: test[0].time };
 }
 
-function evaluateSegment(bars, config) {
-  const metrics = strategy.backtest(bars, config);
+function evaluateSegment(bars, config, evaluationStartIndex = 0) {
+  const metrics = strategy.backtest(bars, { ...config, evaluationStartIndex });
+  const evaluatedBars = bars.slice(evaluationStartIndex);
   return {
-    candles: bars.length,
-    firstCandle: bars[0].time,
-    lastCandle: bars[bars.length - 1].time,
+    candles: evaluatedBars.length,
+    firstCandle: evaluatedBars[0].time,
+    lastCandle: evaluatedBars[evaluatedBars.length - 1].time,
     trades: metrics.trades,
     startingCapital: metrics.startingCapital,
     endingEquity: metrics.endingEquity,
@@ -102,10 +103,10 @@ async function main(argv = process.argv.slice(2)) {
     strategyVersion: strategy.VERSION,
     config,
     inSample: evaluateSegment(split.train, config),
-    outOfSample: evaluateSegment(split.test, config),
+    outOfSample: evaluateSegment(bars, config, split.splitIndex),
     warnings: [
       "Research only: this script does not submit orders.",
-      "The out-of-sample segment is evaluated separately; indicators warm up within that segment, so its earliest candles are consumed for warm-up.",
+      "Out-of-sample indicators use only candles available up to each date, including pre-split history for warm-up; trades and metrics begin at the test boundary.",
       "This is a single-symbol, daily-bar test, not a diversified portfolio or proof of future returns.",
       "Estimated fees and slippage are configurable assumptions, not verified broker costs.",
       "Yahoo Finance data may be delayed, revised, incomplete, or subject to provider terms.",
