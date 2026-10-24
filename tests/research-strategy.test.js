@@ -7,20 +7,26 @@ assert.throws(()=>strategy.barsOf([{open:10,high:8,low:9,close:10,volume:1}]),/I
 const bars=[];
 let price=100;
 for(let i=0;i<180;i++){
- const wave=Math.sin(i/3)*0.7;
+ const change=[0.5,0.5,-0.5][i%3];
  const open=price;
- const close=Math.max(1,price+0.08+wave*0.15);
- const high=Math.max(open,close)+0.3;
- const low=Math.min(open,close)-0.3;
- bars.push({timestamp:new Date(Date.UTC(2025,0,1+i)).toISOString(),open,high,low,close,volume:1000+(i%9)*25});
+ const close=Math.max(1,price+change);
+ const high=Math.max(open,close)+0.01;
+ const low=Math.min(open,close)-0.01;
+ const volume=(i%3===0||i%3===1)?2000:500;
+ bars.push({timestamp:new Date(Date.UTC(2025,0,1+i)).toISOString(),open,high,low,close,volume});
  price=close;
 }
-const signal=strategy.signal(bars);
+const config={emaFast:3,emaSlow:6,rsiPeriod:3,atrPeriod:3,volumePeriod:3,breakoutPeriod:5,stopAtr:2,rewardRisk:2};
+const signal=strategy.signal(bars,config);
 assert.ok(["WAIT","BUY_CANDIDATE"].includes(signal.signal));
 assert.ok(Array.isArray(signal.checks));
-const result=strategy.backtest(bars,{capital:10000,riskPct:0.01,feeBps:5,slippageBps:5});
+const result=strategy.backtest(bars,{...config,capital:10000,riskPct:0.01,feeBps:5,slippageBps:5});
 for(const key of ["endingEquity","netProfit","winRate","maxDrawdownPct","costsPaid"])assert.ok(Number.isFinite(result[key]),key);
 assert.equal(result.candles,bars.length);
+assert.ok(result.trades>0,"synthetic trend should exercise trade-cost accounting");
+assert.ok(Math.abs(result.netProfit-result.tradeLog.reduce((sum,t)=>sum+t.pnl,0))<1e-7,"net profit must equal summed net trade P&L");
+assert.ok(Math.abs(result.endingEquity-(result.startingCapital+result.netProfit))<1e-7,"ending equity must reconcile to net profit");
+assert.ok(result.costsPaid>0,"fees and slippage must be counted");
 assert.ok(result.tradeLog.every(t=>Number.isFinite(t.pnl)&&t.quantity>0));
 assert.ok(result.limitations.some(x=>x.includes("Shariah")));
 assert.throws(()=>strategy.backtest(bars,{riskPct:0.5}),/INVALID_BACKTEST_CONFIG/);
