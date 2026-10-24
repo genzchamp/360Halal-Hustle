@@ -15,6 +15,10 @@ function payload(count = 200) {
 const bars = normalizeYahooChart(payload());
 assert.equal(bars.length, 200);
 assert.equal(bars[0].close, 99.8);
+const adjustedPayload = payload();
+adjustedPayload.chart.result[0].indicators.adjclose = [{ adjclose: adjustedPayload.chart.result[0].indicators.quote[0].close.map(x => x * 0.9) }];
+const adjustedBars = normalizeYahooChart(adjustedPayload);
+assert.ok(Math.abs(adjustedBars[0].close - 89.82) < 1e-8, "provider adjusted-close factor should be applied consistently");
 const split = splitChronologically(bars);
 assert.equal(split.train.length, 140);
 assert.equal(split.test.length, 60);
