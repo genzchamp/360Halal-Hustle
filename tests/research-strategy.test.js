@@ -28,6 +28,7 @@ assert.ok(Math.abs(result.netProfit-result.tradeLog.reduce((sum,t)=>sum+t.pnl,0)
 assert.ok(Math.abs(result.endingEquity-(result.startingCapital+result.netProfit))<1e-7,"ending equity must reconcile to net profit");
 assert.ok(result.costsPaid>0,"fees and slippage must be counted");
 assert.ok(result.tradeLog.every(t=>Number.isFinite(t.pnl)&&t.quantity>0));
+if(result.tradeLog.length){const firstTrade=result.tradeLog[0];const entryIndex=bars.findIndex(b=>b.timestamp===firstTrade.entryTime);assert.ok(entryIndex>0,"first trade should have a prior signal candle");const priorCurve=result.equityCurve.find(point=>point.time===bars[entryIndex-1].timestamp);assert.ok(priorCurve,"equity curve should include the signal candle");assert.ok(Math.abs(priorCurve.equity-result.startingCapital)<1e-7,"equity curve must not mark a position before its next-open entry");}
 assert.ok(result.limitations.some(x=>x.includes("Shariah")));
 assert.throws(()=>strategy.backtest(bars,{riskPct:0.5}),/INVALID_BACKTEST_CONFIG/);
 console.log("Research strategy tests passed: fail-closed short history, OHLCV validation, deterministic signal, cost-aware metrics, bounded risk configuration.");
