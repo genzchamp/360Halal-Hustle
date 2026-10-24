@@ -1,0 +1,17 @@
+name: Validate OBA research strategy
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  research-strategy-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check research strategy syntax
+        run: node --check research-strategy.js
+      - name: Run research strategy tests
+        run: node tests/research-strategy.test.js
