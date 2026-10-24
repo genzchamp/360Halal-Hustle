@@ -1,0 +1,47 @@
+name: Run OBA historical market backtest
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: US equity symbol
+        required: true
+        type: choice
+        options:
+          - AAPL
+          - MSFT
+          - TSLA
+          - NVDA
+      range:
+        description: Daily history range
+        required: true
+        type: choice
+        default: 2y
+        options:
+          - 1y
+          - 2y
+          - 5y
+permissions:
+  contents: read
+jobs:
+  historical-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Fetch historical data and run research backtest
+        env:
+          SYMBOL: ${{ inputs.symbol }}
+          RANGE: ${{ inputs.range }}
+        run: node historical-data-backtest.js "$SYMBOL" "$RANGE" > historical-report.json
+      - name: Print research report
+        run: cat historical-report.json
+      - name: Save JSON report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oba-historical-backtest-${{ inputs.symbol }}-${{ inputs.range }}
+          path: historical-report.json
+          if-no-files-found: error
+          retention-days: 14
