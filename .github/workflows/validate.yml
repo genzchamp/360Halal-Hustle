@@ -23,3 +23,5 @@ jobs:
           node --check paper-engine.js
           node --check risk-engine.js
           node --check historical-backtest.js
+      - name: Test Shariah decision engine fail-closed behavior
+        run: node tests/shariah-decision-engine.test.js
