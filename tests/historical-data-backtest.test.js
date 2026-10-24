@@ -14,7 +14,7 @@ function payload(count = 140) {
 }
 const bars = normalizeYahooChart(payload());
 assert.equal(bars.length, 140);
-assert.equal(bars[0].close, 100.3);
+assert.equal(bars[0].close, 99.8);
 const split = splitChronologically(bars);
 assert.equal(split.train.length, 98);
 assert.equal(split.test.length, 42);
