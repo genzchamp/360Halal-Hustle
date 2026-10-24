@@ -36,7 +36,7 @@ for (const variant of VARIANTS) {
     const prefix = bars.slice(0, end);
     const current = strategy.signal(prefix, options);
     if (!current.checks) continue;
-    const z = strategy.indicators(prefix, options);
+    const z = strategy.indicators(prefix, { ...strategy.DEFAULTS, ...options });
     const i = prefix.length - 1;
     const last = prefix[i];
     const range = z.fibHigh[i] != null && z.fibLow[i] != null ? z.fibHigh[i] - z.fibLow[i] : 0;
