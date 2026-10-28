@@ -10,11 +10,41 @@ function parseCSV(text){const lines=text.trim().split(/\r?\n/).filter(Boolean);i
 function setHistoricalData(data,label){window.OBA_HB_DATA=data;const el=document.getElementById('hbData');if(el)el.textContent=data.length?(label+' · '+data.length+' valid candles loaded.'):'No valid candles found. Required columns: timestamp, open, high, low, close, volume.';}
 function sample(){let p=100,out=[];for(let i=0;i<220;i++){const drift=i<90?0.001:i<150?-0.0002:0.0007;const wave=Math.sin(i/6)*0.012;const ret=drift+wave+(Math.sin(i*3.1)*0.004);const o=p;p=p*(1+ret);const c=p;const h=Math.max(o,c)*(1+0.004+Math.abs(Math.sin(i))*0.003);const l=Math.min(o,c)*(1-0.004-Math.abs(Math.cos(i))*0.003);out.push({timestamp:'Sample '+(i+1),open:o,high:h,low:l,close:c,volume:1000+i*7});}return out;}
 function loadHistoricalSample(){setHistoricalData(sample(),'SYNTHETIC DEMO ONLY — not real market history');}
-function backtest(data,cfg){let cash=cfg.capital,equity=cash,peak=cash,maxDD=0,trades=[],position=null,equityCurve=[{i:0,equity:cash,drawdown:0}];for(let i=20;i<data.length;i++){const c=data[i],prev=data.slice(i-20,i);const high20=Math.max(...prev.map(x=>x.high));if(!position&&c.close>high20){const entry=c.close,stop=entry*(1-cfg.sl),target=entry*(1+cfg.tp),riskAmt=equity*cfg.risk,qty=riskAmt/(entry-stop);position={entry,stop,target,qty,entryBar:i};}
-if(position&&i>position.entryBar){let exit=null,reason='';if(c.low<=position.stop){exit=position.stop;reason='Stop';}else if(c.high>=position.target){exit=position.target;reason='Target';}if(exit!==null){const pnl=(exit-position.entry)*position.qty;cash+=pnl;trades.push({entryBar:position.entryBar,exitBar:i,entry:position.entry,exit,qty:position.qty,pnl,reason});position=null;}}
-equity=cash+(position?(c.close-position.entry)*position.qty:0);peak=Math.max(peak,equity);maxDD=Math.max(maxDD,(peak-equity)/peak);equityCurve.push({i,equity,drawdown:(peak-equity)/peak});}
-if(position){const last=data[data.length-1];const pnl=(last.close-position.entry)*position.qty;cash+=pnl;trades.push({entryBar:position.entryBar,exitBar:data.length-1,entry:position.entry,exit:last.close,qty:position.qty,pnl,reason:'End'});equity=cash;}
-const wins=trades.filter(t=>t.pnl>0),losses=trades.filter(t=>t.pnl<0),grossW=wins.reduce((a,t)=>a+t.pnl,0),grossL=-losses.reduce((a,t)=>a+t.pnl,0);return{ending:cash,net:cash-cfg.capital,winRate:trades.length?wins.length/trades.length:0,maxDD,expectancy:trades.length?(cash-cfg.capital)/trades.length:0,profitFactor:grossL?grossW/grossL:(grossW?Infinity:0),trades,equityCurve};}
+function backtest(data,cfg){
+if(!Array.isArray(data)||data.length<22)throw new Error('At least 22 valid candles are required.');
+for(let i=0;i<data.length;i++){const c=data[i];if(![c.open,c.high,c.low,c.close,c.volume??0].every(Number.isFinite)||c.open<=0||c.low<=0||c.high<Math.max(c.open,c.close,c.low)||c.low>Math.min(c.open,c.close))throw new Error('Invalid OHLC candle at row '+(i+1)+'.');}
+const costRate=0.001; // 5 bps fee + 5 bps slippage on entry and exit
+let cash=cfg.capital,peak=cash,maxDD=0,position=null,trades=[],equityCurve=[];
+function closePosition(price,i,reason){const p=position,entryCost=p.entry*p.qty*costRate,exitCost=price*p.qty*costRate,gross=(price-p.entry)*p.qty,net=gross-entryCost-exitCost;cash+=net;trades.push({entryBar:p.entryBar,exitBar:i,entry:p.entry,exit:price,qty:p.qty,pnl:net,costs:entryCost+exitCost,reason});position=null;}
+for(let i=21;i<data.length;i++){
+ const c=data[i],hadPosition=!!position;
+ if(position){
+  if(c.open<=position.stop)closePosition(c.open,i,'Gap stop');
+  else if(c.low<=position.stop)closePosition(position.stop,i,'Stop');
+  else if(c.open>=position.target)closePosition(c.open,i,'Gap target');
+  else if(c.high>=position.target)closePosition(position.target,i,'Target');
+ }
+ if(!position&&!hadPosition){
+  const signalBar=data[i-1],prior=data.slice(i-21,i-1),priorHigh=Math.max(...prior.map(x=>x.high));
+  if(signalBar.close>priorHigh){
+   const entry=c.open,stop=entry*(1-cfg.sl),target=entry*(1+cfg.tp),riskPerUnit=entry-stop;
+   const riskBudget=Math.max(0,cash)*Math.min(cfg.risk,0.02);
+   const qty=Math.min(riskBudget/riskPerUnit,Math.max(0,cash)*0.95/entry);
+   if(Number.isFinite(qty)&&qty>0&&stop>0)position={entry,stop,target,qty,entryBar:i};
+  }
+ }
+ let equity=cash;
+ if(position){
+  // Net mark-to-market includes estimated entry and exit costs.
+  equity=cash+(c.close-position.entry)*position.qty-(position.entry+c.close)*position.qty*costRate;
+ }
+ peak=Math.max(peak,equity);maxDD=Math.max(maxDD,peak>0?(peak-equity)/peak:0);
+ equityCurve.push({i,equity,drawdown:peak>0?(peak-equity)/peak:0});
+}
+if(position){const last=data[data.length-1];closePosition(last.close,data.length-1,'End of data');if(equityCurve.length)equityCurve[equityCurve.length-1].equity=cash;}
+const wins=trades.filter(t=>t.pnl>0),losses=trades.filter(t=>t.pnl<0),grossW=wins.reduce((a,t)=>a+t.pnl,0),grossL=-losses.reduce((a,t)=>a+t.pnl,0);
+return{ending:cash,net:cash-cfg.capital,winRate:trades.length?wins.length/trades.length:0,maxDD,expectancy:trades.length?(cash-cfg.capital)/trades.length:0,profitFactor:grossL?grossW/grossL:(grossW?Infinity:0),costs:trades.reduce((a,t)=>a+t.costs,0),trades,equityCurve};
+}
 function runHistoricalBacktest(){const data=window.OBA_HB_DATA||[];const out=document.getElementById('hbOut');if(!data.length){out.innerHTML='<div class="paper-note" style="margin-top:12px">Load a CSV or sample candles first.</div>';return;}const cfg={capital:+hbCapital.value,risk:+hbRisk.value/100,sl:+hbSL.value/100,tp:+hbTP.value/100};if(!(cfg.capital>0&&cfg.risk>0&&cfg.sl>0&&cfg.tp>0)){out.innerHTML='<div class="paper-note" style="margin-top:12px">Check the backtest settings.</div>';return;}const r=backtest(data,cfg);out.innerHTML='<div class="bt-results"><div class="bt-stat"><small>ENDING EQUITY</small><b>'+money(r.ending)+'</b></div><div class="bt-stat"><small>NET P&L</small><b class="'+(r.net>=0?'pass':'red')+'">'+money(r.net)+'</b></div><div class="bt-stat"><small>WIN RATE</small><b>'+pct(r.winRate)+'</b></div><div class="bt-stat"><small>MAX DRAWDOWN</small><b class="red">'+pct(r.maxDD)+'</b></div><div class="bt-stat"><small>EXPECTANCY / TRADE</small><b>'+money(r.expectancy)+'</b></div><div class="bt-stat"><small>PROFIT FACTOR</small><b>'+((r.profitFactor===Infinity)?'∞':r.profitFactor.toFixed(2))+'</b></div></div><div class="equitybox"><div class="sub">EQUITY CURVE · ending account value by test step</div><svg class="equitysvg" viewBox="0 0 900 190" preserveAspectRatio="none"><polyline fill="none" stroke="#9eea62" stroke-width="3" points="'+r.equityCurve.map((p,n)=>{const min=Math.min(...r.equityCurve.map(x=>x.equity)),max=Math.max(...r.equityCurve.map(x=>x.equity));const x=r.equityCurve.length===1?0:n/(r.equityCurve.length-1)*900,y=175-(p.equity-min)/Math.max(1,max-min)*150;return x+','+y}).join(' ')+'"/></svg></div><div class="paper-note" style="margin-top:12px">'+r.trades.length+' completed trades · Breakout over prior 20 candles · Fixed SL/TP · 1% risk default. Results are historical-test output only, not a forecast.</div><div class="tablewrap paper-table"><table><thead><tr><th>#</th><th>ENTRY</th><th>EXIT</th><th>QTY</th><th>P&L</th><th>REASON</th></tr></thead><tbody>'+r.trades.slice(-30).map((t,n)=>'<tr><td>'+ (n+1)+'</td><td>'+money(t.entry)+'</td><td>'+money(t.exit)+'</td><td>'+t.qty.toFixed(3)+'</td><td class="'+(t.pnl>=0?'pass':'red')+'">'+money(t.pnl)+'</td><td>'+esc(t.reason)+'</td></tr>').join('')+'</tbody></table></div>';}
 window.openHistoricalBacktest=openHistoricalBacktest;window.closeHistoricalBacktest=closeHistoricalBacktest;window.loadHistoricalSample=loadHistoricalSample;window.runHistoricalBacktest=runHistoricalBacktest;
 })();
