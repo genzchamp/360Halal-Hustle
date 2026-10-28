@@ -47,11 +47,13 @@ function riskDecision({account=10000, entry, stop, target, positions=0, dailyLos
   const c=getRiskConfig();
   const reasons=[];
   if(!Number.isFinite(entry)||!Number.isFinite(stop)||entry<=0||stop<=0) reasons.push("Invalid entry or stop price.");
-  const stopPct = Number.isFinite(entry)&&entry>0 ? Math.abs(entry-stop)/entry*100 : Infinity;
-  const targetPct = Number.isFinite(entry)&&entry>0&&Number.isFinite(target) ? Math.abs(target-entry)/entry*100 : 0;
-  if(c.stopRequired && (!Number.isFinite(stopPct)||stopPct<=0)) reasons.push("A valid stop-loss is required.");
-  if(stopPct>c.positionRisk*2) reasons.push("Stop distance exceeds the configured risk envelope.");
-  if(targetPct>0 && targetPct/Math.max(stopPct,0.0001)<1) reasons.push("Take-profit is below a 1:1 reward-to-risk ratio.");
+  // This ticket currently supports BUY orders only: stop must be below entry and target above it.
+  const stopPct = Number.isFinite(entry)&&entry>0 ? (entry-stop)/entry*100 : Infinity;
+  const targetPct = Number.isFinite(entry)&&entry>0&&Number.isFinite(target) ? (target-entry)/entry*100 : 0;
+  if(c.stopRequired && (!Number.isFinite(stopPct)||stopPct<=0)) reasons.push("For a BUY order, stop-loss must be below entry.");
+  if(Number.isFinite(stopPct)&&stopPct>0&&stopPct>c.stopLoss) reasons.push("Stop distance exceeds your configured stop-loss percentage.");
+  if(!Number.isFinite(target)||target<=entry) reasons.push("For a BUY order, take-profit must be above entry.");
+  if(stopPct>0 && Number.isFinite(targetPct) && targetPct/stopPct<1) reasons.push("Take-profit is below a 1:1 reward-to-risk ratio.");
   if(positions>=c.maxPositions) reasons.push("Maximum open positions reached.");
   if(dailyLoss>=c.dailyLoss) reasons.push("Daily loss limit reached.");
   if(weeklyLoss>=c.weeklyLoss) reasons.push("Weekly loss limit reached.");
