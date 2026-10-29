@@ -38,7 +38,7 @@ async function refreshMarketQuotes(){
   const status=document.getElementById("marketConnection");
   if(status)status.textContent="Fetching third-party quotes…";
   try{
-    const data=await obaApi("/api/market/quotes?symbols=AAPL,MSFT");
+    const data=await obaApi("/api/market/quotes?symbols=AAPL,MSFT,BTC-USD,ETH-USD");
     (data.quotes||[]).forEach(renderMarketQuote);
     const usable=(data.quotes||[]).filter(q=>Number.isFinite(Number(q.price))).length;
     if(status)status.textContent=usable?"Market data returned · "+usable+" quotes · provider data may be delayed":"No usable provider quote returned; no simulated fallback used";
