@@ -54,7 +54,7 @@ async function refreshMarketQuotes(){
     if(status)status.textContent=usable?"Market data returned · "+usable+" quotes · provider data may be delayed":"No usable provider quote returned; no simulated fallback used";
     if(!usable){const price=document.getElementById("marketPrice");if(price)price.textContent="Quote unavailable";const chart=document.getElementById("marketChart");if(chart)chart.innerHTML='<text x="450" y="112" text-anchor="middle" fill="#89958f" font-size="14">Provider returned no usable chart data</text>';}
     const list=document.getElementById("secondaryQuotes");
-    if(list){list.style.fontSize="12px";list.style.lineHeight="1.8";list.innerHTML="<b style='color:#89958f'>OTHER QUOTES · </b>"+(data.quotes||[]).filter(q=>q.symbol!=="AAPL").map(q=>Number.isFinite(Number(q.price))?'<span style="display:inline-block;border:1px solid #ffffff20;border-radius:8px;padding:5px 9px;margin:3px"><b>'+q.symbol+'</b> <strong>'+marketMoney(q.price,q.currency||"USD")+'</strong> <small>'+(q.marketState||"")+'</small></span>':'<span><b>'+q.symbol+'</b> quote unavailable</span>').join("");}
+    if(list){list.style.fontSize="12px";list.style.lineHeight="1.8";list.innerHTML="<b style='color:#89958f'>OTHER QUOTES · </b>"+(data.quotes||[]).filter(q=>q.symbol!=="AAPL").map(q=>Number.isFinite(Number(q.price))?'<button type="button" data-market-symbol="'+q.symbol+'" style="display:inline-block;text-align:left;background:#07100c;color:#d6ded9;border:1px solid #ffffff20;border-radius:8px;padding:5px 9px;margin:3px;cursor:pointer"><b>'+q.symbol+'</b> <strong>'+marketMoney(q.price,q.currency||"USD")+'</strong> <small>'+(q.marketState||"")+'</small></button>':'<span><b>'+q.symbol+'</b> quote unavailable</span>').join("");}
   }catch(e){
     if(status)status.textContent="Market data unavailable · "+(e.message||"try again");
     const price=document.getElementById("marketPrice");if(price)price.textContent="Quote unavailable";
@@ -65,6 +65,12 @@ async function refreshMarketQuotes(){
 }
 document.addEventListener("DOMContentLoaded",()=>{
   const selector=document.getElementById("marketSymbolSelect");
+  const secondary=document.getElementById("secondaryQuotes");
+  if(secondary)secondary.addEventListener("click",e=>{
+    const button=e.target.closest("[data-market-symbol]");if(!button)return;
+    const chartSelector=document.getElementById("marketSymbolSelect");if(!chartSelector)return;
+    chartSelector.value=button.dataset.marketSymbol;chartSelector.dispatchEvent(new Event("change"));
+  });
   if(selector)selector.addEventListener("change",async()=>{
     const symbol=selector.value,chart=document.getElementById("marketChart"),status=document.getElementById("marketChartStatus");
     if(status)status.textContent="Loading "+symbol+" chart…";
