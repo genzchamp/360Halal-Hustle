@@ -46,7 +46,7 @@ function updatePaperTicket(){
   const quote=window.OBA_MARKET_QUOTES?.[symbol];
   const price=Number(quote?.price);
   const quoteTime=Date.parse(quote?.fetchedAt||"");
-  const fresh=Number.isFinite(quoteTime)&&Date.now()-quoteTime<120000&&Date.now()>=quoteTime;
+  const fresh=Number.isFinite(quoteTime)&&Date.now()-quoteTime<120000&&Date.now()>=quoteTime&&quote?.dataQuality!=="daily-close";
   const entryEl=document.getElementById("poEntry"),stopEl=document.getElementById("poStop"),targetEl=document.getElementById("poTarget"),qty=document.getElementById("poQty");
   const status=document.getElementById("paperQuoteStatus");
   const changed=symbol!==OBA_LAST_TICKET_SYMBOL;
@@ -64,7 +64,7 @@ function updatePaperTicket(){
   }
   if(status)status.textContent=Number.isFinite(price)&&price>0&&fresh
     ? "Quote ready: "+symbol+" at $"+price.toFixed(2)+" · received "+new Date(quote.fetchedAt).toLocaleTimeString()+". Confirm stop, target and quantity before submitting."
-    : "No fresh provider quote for "+(symbol||"this asset")+". Refresh quotes and try again. Orders are blocked without a fresh quote.";
+    : "No fresh intraday provider quote for "+(symbol||"this asset")+". Historical daily closes may be shown for context, but they cannot be used as order-entry prices. Refresh quotes and try again.";
   const gate=shariahGate(symbol);renderShariahDecision(gate);
   const riskInput=document.getElementById("poRisk"),cfg=getRiskConfig();
   if(riskInput)riskInput.value=cfg.positionRisk.toFixed(1);
