@@ -192,7 +192,7 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="GET"&&req.url.startsWith("/api/market/quotes")){
     const url=new URL(req.url,"http://localhost");
     const symbols=String(url.searchParams.get("symbols")||"AAPL,MSFT").split(",").map(x=>x.trim().toUpperCase());
-    if(!symbols.length||symbols.length>4||symbols.some(x=>!MARKET_SYMBOLS.has(x)))return json(res,400,{error:"UNSUPPORTED_SYMBOL",message:"Supported symbols: AAPL, MSFT, TSLA, NVDA."},origin);
+    if(!symbols.length||symbols.length>4||symbols.some(x=>!MARKET_SYMBOLS.has(x)))return json(res,400,{error:"UNSUPPORTED_SYMBOL",message:"Choose from the supported stock, ETF, or crypto symbols listed in the app."},origin);
     const quotes=await Promise.all(symbols.map(async symbol=>{try{return await getMarketQuote(symbol)}catch(e){return{symbol,error:"MARKET_DATA_UNAVAILABLE",message:"No quote returned. No simulated fallback was used.",providerDiagnostics:e?.providerDiagnostics||{reason:"PROVIDER_REQUEST_FAILED"}}}}));
     return json(res,quotes.some(q=>Number.isFinite(q.price))?200:503,{quotes,notice:"Third-party data may be delayed. Paper mode only; no broker orders are sent.",fetchedAt:new Date().toISOString()},origin);
   }
