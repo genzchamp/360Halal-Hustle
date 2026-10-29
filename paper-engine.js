@@ -25,7 +25,7 @@ async function openPaperOrder(){
   const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");
   const cfg=getRiskConfig();
   const html=`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH DECISION</span><strong>Checking evidence…</strong><p>Missing evidence must block the order.</p></div><div class="formgrid">
-<label>Asset<select id="poSymbol" onchange="updatePaperTicket()"><option>AAPL</option><option>MSFT</option></select></label>
+<label>Asset<select id="poSymbol" onchange="updatePaperTicket()"><option value="AAPL">Apple · AAPL</option><option value="MSFT">Microsoft · MSFT</option><option value="NVDA">NVIDIA · NVDA</option><option value="TSLA">Tesla · TSLA</option><option value="AMZN">Amazon · AMZN</option><option value="GOOGL">Alphabet · GOOGL</option><option value="META">Meta · META</option><option value="AMD">AMD · AMD</option><option value="INTC">Intel · INTC</option><option value="NFLX">Netflix · NFLX</option><option value="SPY">S&P 500 ETF · SPY</option><option value="QQQ">Nasdaq 100 ETF · QQQ</option><option value="BTC-USD">Bitcoin · BTC-USD</option><option value="ETH-USD">Ethereum · ETH-USD</option><option value="SOL-USD">Solana · SOL-USD</option><option value="BNB-USD">BNB · BNB-USD</option><option value="XRP-USD">XRP · XRP-USD</option></select></label>
 <label>Side<select id="poSide"><option value="BUY">Buy</option></select></label>
 <label>Entry price (latest provider quote)<input id="poEntry" type="number" step="0.01" placeholder="Waiting for quote…" readonly></label>
 <label>Stop price<input id="poStop" type="number" step="0.01" placeholder="Waiting for quote…" oninput="updatePaperRiskReadout()"></label>
