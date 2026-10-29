@@ -41,7 +41,24 @@ async function openPaperOrder(){
   updatePaperTicket();
 }
 let OBA_LAST_TICKET_SYMBOL="";
-function updatePaperTicket(){
+async function refreshSelectedPaperQuote(symbol){
+  if(!symbol||window.OBA_PAPER_QUOTE_PENDING===symbol)return;
+  window.OBA_PAPER_QUOTE_PENDING=symbol;
+  const status=document.getElementById("paperQuoteStatus");
+  if(status)status.textContent="Refreshing provider quote for "+symbol+"…";
+  try{
+    const data=await obaApi("/api/market/quotes?symbols="+encodeURIComponent(symbol));
+    const quote=(data.quotes||[]).find(q=>q.symbol===symbol&&Number.isFinite(Number(q.price)));
+    if(quote)window.OBA_MARKET_QUOTES[symbol]=quote;
+    else throw new Error("No usable provider quote was returned.");
+  }catch(e){
+    if(status&&document.getElementById("poSymbol")?.value?.toUpperCase()===symbol)status.textContent="Quote unavailable for "+symbol+": "+(e.message||"provider unavailable")+". No simulated price was used.";
+  }finally{
+    if(window.OBA_PAPER_QUOTE_PENDING===symbol)window.OBA_PAPER_QUOTE_PENDING=null;
+    if(document.getElementById("poSymbol")?.value?.toUpperCase()===symbol)updatePaperTicket(false);
+  }
+}
+function updatePaperTicket(allowFetch=true){
   const symbol=document.getElementById("poSymbol")?.value?.toUpperCase();
   const quote=window.OBA_MARKET_QUOTES?.[symbol];
   const price=Number(quote?.price);
@@ -51,6 +68,7 @@ function updatePaperTicket(){
   const status=document.getElementById("paperQuoteStatus");
   const changed=symbol!==OBA_LAST_TICKET_SYMBOL;
   if(changed)OBA_LAST_TICKET_SYMBOL=symbol||"";
+  if(allowFetch&&(!fresh||!Number.isFinite(price)||price<=0)&&symbol)refreshSelectedPaperQuote(symbol);
   if(entryEl){
     entryEl.value=Number.isFinite(price)&&price>0&&fresh?price.toFixed(2):"";
     entryEl.dataset.quoteTime=quote?.fetchedAt||"";
