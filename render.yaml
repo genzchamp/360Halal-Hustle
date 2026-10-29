@@ -10,6 +10,8 @@ services:
     envVars:
       - key: MAX_RISK_PER_TRADE
         value: "0.01"
+      - key: MAX_STOP_LOSS_PERCENT
+        value: "0.02"
       - key: MAX_DAILY_LOSS
         value: "0.02"
       - key: MAX_OPEN_POSITIONS
