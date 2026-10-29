@@ -108,7 +108,7 @@ async function auditEvent(supabase,userId,eventType,payload,status,message){
   await supabase.from("audit_events").insert({user_id:userId,event_type:eventType,symbol:payload?.symbol||null,status,message:message||null,metadata:payload||{}}).then(({error})=>{if(error)console.error("audit insert:",error.message)});
 }
 
-const MARKET_SYMBOLS=new Set(["AAPL","MSFT","TSLA","NVDA"]);
+const MARKET_SYMBOLS=new Set(["AAPL","MSFT","TSLA","NVDA","AMZN","GOOGL","META","AMD","INTC","NFLX","SPY","QQQ","BTC-USD","ETH-USD","SOL-USD","BNB-USD","XRP-USD"]);
 const marketQuoteCache=new Map();
 async function getStooqQuote(symbol){
   const key=String(symbol||"").toLowerCase()+".us";
@@ -167,6 +167,28 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="GET"&&req.url==="/")return json(res,200,{ok:true,service:"oba-ai-trader-api",status:"ONLINE",mode:"paper",liveExecution:false,persistence:"supabase",message:"OBA AI Trader API is running."},origin);
   if(req.method==="GET"&&(["/health","/api/health"].includes(new URL(req.url,"http://localhost").pathname)))return json(res,200,{ok:true,service:"oba-ai-trader-api",mode:"paper",liveExecution:false,marketDataSource:"Yahoo Finance chart data",paperPositionMarking:SUPABASE_SERVICE_ROLE_KEY?"provider-quotes-configured":"requires-server-service-role-key",persistence:SUPABASE_URL?"supabase-configured":"not-configured",shariahPolicyVersion:SHARIAH_POLICY_VERSION,shariahPolicyStatus:SHARIAH_POLICY_STATUS,orderSubmissionEnabled:false},origin);
   if(req.method==="GET"&&new URL(req.url,"http://localhost").pathname==="/api/shariah/status")return json(res,200,{policyVersion:SHARIAH_POLICY_VERSION,policyStatus:SHARIAH_POLICY_STATUS,orderSubmissionEnabled:false,decision:"UNABLE_TO_VERIFY",reason:"No verified scholar-approved policy and server-side screening evidence are configured. All orders remain blocked.",liveExecution:false},origin);
+  if(req.method==="GET"&&new URL(req.url,"http://localhost").pathname==="/api/market/history"){
+    const url=new URL(req.url,"http://localhost");
+    const symbol=String(url.searchParams.get("symbol")||"AAPL").trim().toUpperCase();
+    const range=String(url.searchParams.get("range")||"5y");
+    const interval=String(url.searchParams.get("interval")||"1d");
+    const rangesByInterval={"1d":new Set(["1mo","3mo","6mo","1y","2y","5y","10y","max"]),"1h":new Set(["1mo","3mo","6mo","1y"]),"15m":new Set(["5d","1mo"]),"5m":new Set(["1d","5d"])};
+    if(!MARKET_SYMBOLS.has(symbol))return json(res,400,{error:"UNSUPPORTED_SYMBOL",message:"Choose a listed stock, ETF, or supported crypto pair."},origin);
+    if(!rangesByInterval[interval]||!rangesByInterval[interval].has(range))return json(res,400,{error:"INVALID_HISTORY_RANGE",message:"That history range and interval combination is not supported."},origin);
+    try{
+      const endpoint="https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(symbol)+"?range="+encodeURIComponent(range)+"&interval="+encodeURIComponent(interval)+"&events=history";
+      const response=await fetch(endpoint,{headers:{"accept":"application/json","user-agent":"Mozilla/5.0 OBA-AI-Trader/1.0"},signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw new Error("HISTORY_PROVIDER_HTTP_"+response.status);
+      const payload=await response.json(),item=payload?.chart?.result?.[0],meta=item?.meta,series=item?.indicators?.quote?.[0];
+      if(!item||!series||!Array.isArray(item.timestamp))throw new Error("HISTORY_PROVIDER_NO_DATA");
+      const candles=item.timestamp.map((t,i)=>({timestamp:new Date(t*1000).toISOString(),open:series.open?.[i],high:series.high?.[i],low:series.low?.[i],close:series.close?.[i],volume:series.volume?.[i]??0})).filter(b=>[b.open,b.high,b.low,b.close].every(v=>Number.isFinite(Number(v))&&Number(v)>0)&&Number(b.high)>=Math.max(Number(b.open),Number(b.close),Number(b.low))&&Number(b.low)<=Math.min(Number(b.open),Number(b.close)));
+      if(candles.length<22)throw new Error("HISTORY_TOO_SHORT");
+      return json(res,200,{symbol,range,interval,currency:meta?.currency||"USD",exchange:meta?.fullExchangeName||meta?.exchangeName||"Unknown",source:"Yahoo Finance chart history",dataQuality:"historical-provider-candles",fetchedAt:new Date().toISOString(),candles},origin);
+    }catch(e){
+      const code=String(e?.message||"HISTORY_UNAVAILABLE").replace(/[^A-Za-z0-9_:-]/g,"_").slice(0,80);
+      return json(res,503,{error:"HISTORICAL_DATA_UNAVAILABLE",symbol,range,interval,message:"Historical provider candles could not be loaded. Import a trusted OHLCV CSV instead; no synthetic data was substituted.",diagnostic:code},origin);
+    }
+  }
   if(req.method==="GET"&&req.url.startsWith("/api/market/quotes")){
     const url=new URL(req.url,"http://localhost");
     const symbols=String(url.searchParams.get("symbols")||"AAPL,MSFT").split(",").map(x=>x.trim().toUpperCase());
