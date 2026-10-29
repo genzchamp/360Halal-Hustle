@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const PORT=Number(process.env.PORT||8080);
 const MAX_RISK=Number(process.env.MAX_RISK_PER_TRADE||0.01);
+const MAX_STOP_LOSS_PERCENT=Number(process.env.MAX_STOP_LOSS_PERCENT||0.02);
 const MAX_DAILY_LOSS=Number(process.env.MAX_DAILY_LOSS||0.02);
 const MAX_WEEKLY_LOSS=Number(process.env.MAX_WEEKLY_LOSS||0.05);
 const MAX_OPEN_POSITIONS=Number(process.env.MAX_OPEN_POSITIONS||3);
@@ -26,7 +27,31 @@ const rateBuckets=new Map();
 if(!SUPABASE_URL||!SUPABASE_PUBLISHABLE_KEY) console.warn("Supabase environment variables are missing; authenticated API routes will be unavailable.");
 
 function json(res,status,body,origin=""){const headers={"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer","vary":"Origin","access-control-allow-methods":"GET,POST,OPTIONS","access-control-allow-headers":"content-type,authorization"};if(origin&&ALLOWED_ORIGINS.has(origin))headers["access-control-allow-origin"]=origin;res.writeHead(status,headers);res.end(JSON.stringify(body))}
-function riskCheck({account=10000,entry,stop,target,quantity=0,openPositions=0,dailyLoss=0,weeklyLoss=0}){entry=Number(entry);stop=Number(stop);target=Number(target);if(![entry,stop,target].every(Number.isFinite)||entry<=0||stop<=0||target<=entry)return{allowed:false,code:"INVALID_ORDER",reason:"Invalid entry, stop or target."};if(stop>=entry)return{allowed:false,code:"STOP_REQUIRED",reason:"Long paper orders require a stop below entry."};if(openPositions>=MAX_OPEN_POSITIONS)return{allowed:false,code:"MAX_POSITIONS",reason:"Maximum open positions reached."};if(dailyLoss>=MAX_DAILY_LOSS)return{allowed:false,code:"DAILY_LOSS_LIMIT",reason:"Daily loss limit reached."};if(weeklyLoss>=MAX_WEEKLY_LOSS)return{allowed:false,code:"WEEKLY_LOSS_LIMIT",reason:"Weekly loss limit reached."};const riskPerUnit=entry-stop,riskAmount=Number(account)*MAX_RISK,rewardPerUnit=target-entry,requestedQty=Math.floor(Number(quantity)||0);if(requestedQty<1)return{allowed:false,code:"INVALID_QUANTITY",reason:"Quantity must be at least 1."};const requestedRisk=riskPerUnit*requestedQty;if(requestedRisk>riskAmount)return{allowed:false,code:"POSITION_RISK",reason:"Requested position risk exceeds the server risk limit.",requestedRisk,maxRisk:riskAmount};if(rewardPerUnit/riskPerUnit<1)return{allowed:false,code:"REWARD_RISK",reason:"Reward/risk must be at least 1:1."};return{allowed:true,code:"ALLOWED",riskAmount,quantity:requestedQty,requestedRisk,rewardRisk:rewardPerUnit/riskPerUnit}}
+function riskCheck({account=10000,entry,stop,target,quantity=0,openPositions=0,dailyLoss=0,weeklyLoss=0}) {
+  entry=Number(entry); stop=Number(stop); target=Number(target);
+  if(![entry,stop,target].every(Number.isFinite)||entry<=0||stop<=0||target<=0||target<=entry)
+    return {allowed:false,code:"INVALID_ORDER",reason:"Entry, stop and target must be valid positive prices, with target above entry."};
+  if(stop>=entry)
+    return {allowed:false,code:"STOP_REQUIRED",reason:"Long paper orders require a stop below entry."};
+  const stopLossPercent=(entry-stop)/entry;
+  if(stopLossPercent>MAX_STOP_LOSS_PERCENT)
+    return {allowed:false,code:"STOP_LOSS_LIMIT",reason:"Stop distance exceeds the server maximum stop-loss percentage.",stopLossPercent,maxStopLossPercent:MAX_STOP_LOSS_PERCENT};
+  if(openPositions>=MAX_OPEN_POSITIONS)
+    return {allowed:false,code:"MAX_POSITIONS",reason:"Maximum open positions reached."};
+  if(dailyLoss>=MAX_DAILY_LOSS)
+    return {allowed:false,code:"DAILY_LOSS_LIMIT",reason:"Daily loss limit reached."};
+  if(weeklyLoss>=MAX_WEEKLY_LOSS)
+    return {allowed:false,code:"WEEKLY_LOSS_LIMIT",reason:"Weekly loss limit reached."};
+  const riskPerUnit=entry-stop, riskAmount=Number(account)*MAX_RISK, rewardPerUnit=target-entry, requestedQty=Math.floor(Number(quantity)||0);
+  if(requestedQty<1)
+    return {allowed:false,code:"INVALID_QUANTITY",reason:"Quantity must be at least 1."};
+  const requestedRisk=riskPerUnit*requestedQty;
+  if(requestedRisk>riskAmount)
+    return {allowed:false,code:"POSITION_RISK",reason:"Requested position risk exceeds the server risk limit.",requestedRisk,maxRisk:riskAmount};
+  if(rewardPerUnit/riskPerUnit<1)
+    return {allowed:false,code:"REWARD_RISK",reason:"Reward/risk must be at least 1:1."};
+  return {allowed:true,code:"ALLOWED",riskAmount,quantity:requestedQty,requestedRisk,rewardRisk:rewardPerUnit/riskPerUnit,stopLossPercent};
+}
 async function body(req){let raw="";let size=0;for await(const chunk of req){size+=Buffer.byteLength(chunk);if(size>MAX_BODY_BYTES)throw new Error("REQUEST_TOO_LARGE");raw+=chunk}return raw?JSON.parse(raw):{}}
 function bearer(req){const h=req.headers.authorization||"";return h.startsWith("Bearer ")?h.slice(7).trim():""}
 function clientIp(req){return String(req.headers["x-forwarded-for"]||req.socket.remoteAddress||"unknown").split(",")[0].trim()}
