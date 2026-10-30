@@ -21,9 +21,10 @@ async function obaSignIn(){
   obaAuthModal(false);renderOBAAuth();
 }
 async function obaSignUp(){
-  const email=document.getElementById("obaAuthEmail").value.trim(),password=document.getElementById("obaAuthPassword").value;
+  const email=document.getElementById("obaAuthEmail").value.trim(),password=document.getElementById("obaAuthPassword").value,confirm=document.getElementById("obaAuthConfirmPassword").value;
   if(!email)return obaAuthMessage("Enter a valid email.");
   if(!OBA_STRONG_PASSWORD.test(password))return obaAuthMessage("Use 12+ characters with uppercase, lowercase, a number and a symbol.");
+  if(password!==confirm)return obaAuthMessage("Your passwords do not match. Please check both fields.");
   obaAuthMessage("Creating account…");
   const {data,error}=await supabaseClient.auth.signUp({email,password,options:{emailRedirectTo:OBA_AUTH_REDIRECT}});
   if(error)return obaAuthMessage(error.message);
@@ -47,12 +48,13 @@ async function obaRequestProfilePasswordReset(){
   obaAuthMessage("If email delivery succeeds, a password-reset link will arrive shortly. Check Spam too.",true,"obaProfileMsg");
 }
 async function obaSaveNewPassword(){
-  const password=document.getElementById("obaNewPassword").value;
+  const password=document.getElementById("obaNewPassword").value,confirm=document.getElementById("obaConfirmNewPassword").value;
   if(!OBA_STRONG_PASSWORD.test(password))return obaAuthMessage("Use 12+ characters with uppercase, lowercase, a number and a symbol.",false,"obaPasswordMsg");
+  if(password!==confirm)return obaAuthMessage("The passwords do not match. Please check both fields.",false,"obaPasswordMsg");
   obaAuthMessage("Updating password…",false,"obaPasswordMsg");
   const {error}=await supabaseClient.auth.updateUser({password});
   if(error)return obaAuthMessage(error.message,false,"obaPasswordMsg");
-  document.getElementById("obaNewPassword").value="";
+  document.getElementById("obaNewPassword").value="";document.getElementById("obaConfirmNewPassword").value="";
   obaPasswordModal(false);
   obaAuthMessage("Password updated successfully.",true,"obaProfileMsg");
   obaProfileModal(true);
@@ -63,7 +65,18 @@ async function obaSignOut(){
   obaProfileModal(false);renderOBAAuth();
 }
 async function getSupabaseSession(){const {data}=await supabaseClient.auth.getSession();return data.session}
-function obaAuthOpen(){obaProfileModal(false);obaAuthModal(true);setTimeout(()=>document.getElementById("obaAuthEmail")?.focus(),50)}
+function obaSetAuthMode(mode){
+ const signup=mode==="signup";
+ const confirm=document.getElementById("obaSignupConfirmRow");
+ if(confirm)confirm.style.display=signup?"block":"none";
+ const signIn=document.getElementById("obaSignInButton"),create=document.getElementById("obaSignUpButton");
+ if(signIn)signIn.style.display=signup?"none":"inline-block";
+ if(create)create.style.display=signup?"inline-block":"none";
+ const title=document.getElementById("obaAuthTitle");if(title)title.textContent=signup?"Create your account":"Welcome back";
+ const toggle=document.getElementById("obaAuthModeToggle");if(toggle)toggle.textContent=signup?"Already have an account? Sign in":"New here? Create an account";
+ obaAuthMessage("",true);
+}
+function obaAuthOpen(){obaProfileModal(false);obaAuthModal(true);obaSetAuthMode("signin");setTimeout(()=>document.getElementById("obaAuthEmail")?.focus(),50)}
 async function obaOpenProfile(){
   const session=await getSupabaseSession();
   if(!session){obaAuthOpen();return}
@@ -106,13 +119,13 @@ function injectOBAAuthUI(){
   `;
   document.head.appendChild(style);
   const wrap=document.createElement("div");wrap.id="obaAuthModal";wrap.className="modal";
-  wrap.innerHTML=`<div class="box"><button class="x" type="button" onclick="obaAuthModal(false)" aria-label="Close">×</button><div class="ey">OBA AI TRADER</div><h3>Secure your paper account</h3><p>Sign in to connect your paper trading activity to your own account. No broker or real-money execution is enabled.</p><div class="formgrid" style="grid-template-columns:1fr"><label>Email<input id="obaAuthEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>Password<div class="oba-password-wrap"><input id="obaAuthPassword" type="password" autocomplete="current-password" placeholder="Your password"><button class="oba-eye" type="button" onclick="obaTogglePassword('obaAuthPassword',this)">Show</button></div></label></div><div class="auth-actions"><button class="btn primary" type="button" onclick="obaSignIn()">Sign in</button><button class="btn ghost" type="button" onclick="obaSignUp()">Create account</button></div><button class="oba-link-btn" type="button" onclick="obaForgotPassword()">Forgot password?</button><div id="obaAuthMsg" role="status" aria-live="polite"></div><div id="obaAuthHint">Use a strong password. Email confirmation may be required for new accounts.</div></div>`;
+  wrap.innerHTML=`<div class="box"><button class="x" type="button" onclick="obaAuthModal(false)" aria-label="Close">×</button><div class="ey">OBA AI TRADER</div><h3 id="obaAuthTitle">Welcome back</h3><p>Sign in to connect your paper trading activity to your own account. No broker or real-money execution is enabled.</p><div class="formgrid" style="grid-template-columns:1fr"><label>Email<input id="obaAuthEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>Password<div class="oba-password-wrap"><input id="obaAuthPassword" type="password" autocomplete="current-password" placeholder="Your password"><button class="oba-eye" type="button" onclick="obaTogglePassword('obaAuthPassword',this)">Show</button></div></label><label id="obaSignupConfirmRow" style="display:none">Confirm password<div class="oba-password-wrap"><input id="obaAuthConfirmPassword" type="password" autocomplete="new-password" placeholder="Enter the same password again"><button class="oba-eye" type="button" onclick="obaTogglePassword('obaAuthConfirmPassword',this)">Show</button></div></label></div><div class="auth-actions"><button id="obaSignInButton" class="btn primary" type="button" onclick="obaSignIn()">Sign in</button><button id="obaSignUpButton" class="btn primary" style="display:none" type="button" onclick="obaSignUp()">Create account</button></div><button id="obaAuthModeToggle" class="oba-link-btn" type="button" onclick="obaSetAuthMode(document.getElementById('obaSignupConfirmRow').style.display==='none'?'signup':'signin')">New here? Create an account</button><button class="oba-link-btn" type="button" onclick="obaForgotPassword()">Forgot password?</button><div id="obaAuthMsg" role="status" aria-live="polite"></div><div id="obaAuthHint">Use a strong password. Email confirmation may be required for new accounts.</div></div>`;
   document.body.appendChild(wrap);
   const profile=document.createElement("div");profile.id="obaProfileModal";profile.className="modal";
   profile.innerHTML=`<div class="box"><button class="x" type="button" onclick="obaProfileModal(false)" aria-label="Close">×</button><div class="ey">ACCOUNT</div><h3>Your profile</h3><p>Manage your OBA AI Trader paper-account sign-in details.</p><div class="oba-profile-row"><small>EMAIL ADDRESS</small><b id="obaProfileEmail">—</b></div><div class="oba-profile-row"><small>ACCOUNT CREATED</small><b id="obaProfileCreated">—</b></div><div class="auth-actions"><button class="btn primary" type="button" onclick="obaRequestProfilePasswordReset()">Reset password</button><button class="btn ghost" type="button" onclick="obaSignOut()">Sign out</button></div><div id="obaProfileMsg" role="status" aria-live="polite"></div></div>`;
   document.body.appendChild(profile);
   const password=document.createElement("div");password.id="obaPasswordModal";password.className="modal";
-  password.innerHTML=`<div class="box"><div class="ey">ACCOUNT SECURITY</div><h3>Set a new password</h3><p>Choose a strong password for your OBA AI Trader account.</p><label style="display:block;color:#aab5b0;font-size:10px">New password<div class="oba-password-wrap"><input id="obaNewPassword" type="password" autocomplete="new-password" placeholder="12+ characters"><button class="oba-eye" type="button" onclick="obaTogglePassword('obaNewPassword',this)">Show</button></div></label><div class="auth-actions"><button class="btn primary" type="button" onclick="obaSaveNewPassword()">Save new password</button></div><div id="obaPasswordMsg" role="status" aria-live="polite"></div></div>`;
+  password.innerHTML=`<div class="box"><div class="ey">ACCOUNT SECURITY</div><h3>Set a new password</h3><p>Choose a strong password for your OBA AI Trader account.</p><label style="display:block;color:#aab5b0;font-size:10px">New password<div class="oba-password-wrap"><input id="obaNewPassword" type="password" autocomplete="new-password" placeholder="12+ characters"><button class="oba-eye" type="button" onclick="obaTogglePassword('obaNewPassword',this)">Show</button></div></label><label style="display:block;color:#aab5b0;font-size:10px;margin-top:12px">Confirm new password<div class="oba-password-wrap"><input id="obaConfirmNewPassword" type="password" autocomplete="new-password" placeholder="Enter the new password again"><button class="oba-eye" type="button" onclick="obaTogglePassword('obaConfirmNewPassword',this)">Show</button></div></label><div class="auth-actions"><button class="btn primary" type="button" onclick="obaSaveNewPassword()">Save new password</button></div><div id="obaPasswordMsg" role="status" aria-live="polite"></div></div>`;
   document.body.appendChild(password);
   [wrap,profile,password].forEach(el=>el.addEventListener("click",e=>{if(e.target===el&&el!==password)el.classList.remove("open")}));
 }
