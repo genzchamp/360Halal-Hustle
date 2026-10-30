@@ -65,8 +65,12 @@ async function refreshMarketQuotes(){
 }
 document.addEventListener("DOMContentLoaded",()=>{
   const selector=document.getElementById("marketSymbolSelect");
-  // Always start a fresh page session on AAPL, even if the browser restores a prior form value.
-  if(selector)selector.value="AAPL";
+  // Restore the user's last chart market across reloads; fall back to AAPL only on first visit.
+  const savedSymbol=(()=>{try{return localStorage.getItem("oba_market_chart_symbol_v1")}catch{return null}})();
+  if(selector){
+    const valid=[...selector.options].some(option=>option.value===savedSymbol);
+    selector.value=valid?savedSymbol:"AAPL";
+  }
   const secondary=document.getElementById("secondaryQuotes");
   if(secondary)secondary.addEventListener("click",e=>{
     const button=e.target.closest("[data-market-symbol]");if(!button)return;
@@ -74,12 +78,15 @@ document.addEventListener("DOMContentLoaded",()=>{
     chartSelector.value=button.dataset.marketSymbol;chartSelector.dispatchEvent(new Event("change"));
   });
   if(selector)selector.addEventListener("change",async()=>{
-    const symbol=selector.value,chart=document.getElementById("marketChart"),status=document.getElementById("marketChartStatus");
+    const symbol=selector.value;
+    try{localStorage.setItem("oba_market_chart_symbol_v1",symbol)}catch(e){console.warn("Could not persist selected chart market",e)}
+    const chart=document.getElementById("marketChart"),status=document.getElementById("marketChartStatus");
     if(status)status.textContent="Loading "+symbol+" chart…";
     if(chart)chart.innerHTML='<text x="450" y="112" text-anchor="middle" fill="#89958f" font-size="14">Loading selected market…</text>';
     try{const data=await obaApi("/api/market/quotes?symbols="+encodeURIComponent(symbol));(data.quotes||[]).forEach(renderMarketQuote);if(!(data.quotes||[]).some(q=>Number.isFinite(Number(q.price))))throw new Error("No usable quote returned");}
     catch(e){if(status)status.textContent=symbol+" chart unavailable · "+(e.message||"retry shortly");if(chart)chart.innerHTML='<text x="450" y="112" text-anchor="middle" fill="#89958f" font-size="14">No chart data for '+symbol+'</text>';}
   });
   refreshMarketQuotes();
+  if(selector)selector.dispatchEvent(new Event("change"));
   setInterval(refreshMarketQuotes,30000);
 });
