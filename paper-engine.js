@@ -20,8 +20,7 @@ function renderShariahDecision(gate){
 function paperWeek(){const d=new Date(),first=new Date(d.getFullYear(),0,1);return Math.ceil((((d-first)/86400000)+first.getDay()+1)/7)}
 function paperRiskInputs(){const s=paperState(),r=s.risk||{};return{positions:Number(r.openPositions??s.positions.length),dailyLoss:Number(r.dailyLossPct||0),weeklyLoss:Number(r.weeklyLossPct||0)}}
 async function openPaperOrder(){
-  // Refresh provider quotes before opening the ticket so stale hard-coded prices can never be used.
-  await refreshMarketQuotes();
+  // Open the ticket immediately; quote refresh runs asynchronously inside updatePaperTicket().
   const mt=document.getElementById("mt"),mx=document.getElementById("mx"),m=document.getElementById("m");
   const cfg=getRiskConfig();
   const html=`<div class="screen" id="paperShariahStatus"><span class="sub">SHARIAH DECISION</span><strong>Checking evidence…</strong><p>Missing evidence must block the order.</p></div><div class="formgrid">
