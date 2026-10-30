@@ -13,7 +13,7 @@
   .brand small{display:none}
   .logo{width:30px;height:30px;flex:0 0 30px}
   .menuBtn{display:block;flex:0 0 auto}
-  .safe{display:none}
+  .safe{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:8px 10px;font-size:10px;max-width:132px;flex:0 0 auto}
   .links{display:none;position:absolute;top:58px;left:12px;right:12px;flex-direction:column;gap:0;padding:8px;background:#0b120ff5;border:1px solid var(--line);border-radius:14px;z-index:20}
   .links.open{display:flex}
   .links a{padding:12px 10px;border-bottom:1px solid var(--line)}
@@ -71,4 +71,4 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()})
 document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',e=>{
   const el=document.querySelector(a.getAttribute('href')); if(el){e.preventDefault();el.scrollIntoView({behavior:'smooth',block:'start'})}
 }))
-</script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-client.js?v=auth-confirm-2"></script><script src="risk-engine.js"></script><script src="api-client.js"></script><script src="market-data.js?v=dee92bb"></script><script src="shariah-decision-engine.js?v=9c8d2171"></script><script src="paper-engine.js?v=paper-modal-fix-1"></script><script src="historical-backtest.js?v=backtest-modal-fix-1"></script></body></html>
+</script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-client.js?v=mobile-auth-visible-1"></script><script src="risk-engine.js"></script><script src="api-client.js"></script><script src="market-data.js?v=dee92bb"></script><script src="shariah-decision-engine.js?v=9c8d2171"></script><script src="paper-engine.js?v=instant-ticket-open-1"></script><script src="historical-backtest.js?v=backtest-modal-fix-1"></script></body></html>
