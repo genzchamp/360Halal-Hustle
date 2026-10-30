@@ -65,6 +65,8 @@ async function refreshMarketQuotes(){
 }
 document.addEventListener("DOMContentLoaded",()=>{
   const selector=document.getElementById("marketSymbolSelect");
+  // Always start a fresh page session on AAPL, even if the browser restores a prior form value.
+  if(selector)selector.value="AAPL";
   const secondary=document.getElementById("secondaryQuotes");
   if(secondary)secondary.addEventListener("click",e=>{
     const button=e.target.closest("[data-market-symbol]");if(!button)return;
