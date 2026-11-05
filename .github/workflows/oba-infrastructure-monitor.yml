@@ -2,7 +2,7 @@ name: OBA Infrastructure Monitor
 
 on:
   schedule:
-    # GitHub scheduled runs are best-effort; they may start late.
+    # GitHub scheduled runs are best-effort and may start late.
     - cron: "*/10 * * * *"
   workflow_dispatch:
 
@@ -19,31 +19,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Check service endpoints
+      - name: Check Downloader and Cobalt Engine
         env:
-          AI_TRADER_API_URL: https://oba-ai-trader-api.onrender.com/health
+          DOWNLOADER_URL: https://oba-downloader.onrender.com/
           COBALT_ENGINE_URL: https://oba-cobalt-engine.onrender.com/
-          DOWNLOADER_URL: ${{ secrets.OBA_DOWNLOADER_URL }}
         run: |
           python - <<'PY'
           import os, sys, time, urllib.request, urllib.error
 
           targets = [
-              ("OBA AI Trader API", os.environ["AI_TRADER_API_URL"]),
-              ("OBA Downloader", os.environ.get("DOWNLOADER_URL", "").strip()),
+              ("OBA Downloader", os.environ["DOWNLOADER_URL"]),
               ("OBA Cobalt Engine", os.environ["COBALT_ENGINE_URL"]),
           ]
 
           failures = []
           print("OBA Infrastructure Monitor")
-          print("Checks run independently; an HTTP response confirms reachability, not full application correctness.")
+          print("An HTTP response confirms reachability, not full application correctness.")
 
           for name, url in targets:
-              if not url:
-                  print(f"NOT CONFIGURED | {name} | Add GitHub Actions secret OBA_DOWNLOADER_URL")
-                  failures.append(f"{name}: URL not configured")
-                  continue
-
               last_error = None
               for attempt in range(1, 4):
                   try:
@@ -78,5 +71,5 @@ jobs:
                   print(f"- {failure}")
               sys.exit(1)
 
-          print("\nAll configured services responded successfully.")
+          print("\nBoth monitored services responded successfully.")
           PY
